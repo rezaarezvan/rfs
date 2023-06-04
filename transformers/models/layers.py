@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.autograd import Variable
 
 
 class SelfAttention(nn.Module):
@@ -89,6 +90,7 @@ class TransformerBlock(nn.Module):
 class PositionalEncoding(nn.Module):
     def __init__(self, dim_model, max_len=512):
         super().__init__()
+        self.dim_model = dim_model
 
         # Create matrix of [SeqLen, EmbeddingDimension] representing the positional encoding
 
@@ -97,18 +99,16 @@ class PositionalEncoding(nn.Module):
             for i in range(0, dim_model, 2):
                 pos_enc[pos, i] = \
                     math.sin(pos / (10000 ** ((2 * i)/dim_model)))
-                if i + 1 < dim_model:
-                    pos_enc[pos, i + 1] = \
-                        math.cos(
-                        pos / (10000 ** ((2 * (i + 1))/dim_model)))
+                pos_enc[pos, i + 1] = \
+                    math.cos(
+                    pos / (10000 ** ((2 * (i + 1))/dim_model)))
         # Include batch dimension
         pos_enc = pos_enc.unsqueeze(0)
-
         self.register_buffer('pos_enc', pos_enc)
 
     def forward(self, x):
         # Make embeddings relatively larger
-        x = x * math.sqrt(self.pos_enc.size(2))
+        x = x * math.sqrt(self.dim_model)
         # Add constant to embedding
         seq_len = x.size(1)
         pos_enc = Variable(self.pos_enc[:, :seq_len], requires_grad=False)
