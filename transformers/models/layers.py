@@ -88,7 +88,7 @@ class TransformerBlock(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
-    def __init__(self, dim_model, max_len=512):
+    def __init__(self, dim_model, max_len=32):
         super().__init__()
         self.dim_model = dim_model
 
@@ -113,8 +113,7 @@ class PositionalEncoding(nn.Module):
         seq_len = x.size(1)
         pos_enc = Variable(self.pos_enc[:, :seq_len], requires_grad=False)
 
-        if x.is_cuda:
-            pos_enc.cuda()
+        pos_enc = pos_enc.to(x.device)
         x = x + pos_enc
 
         return x

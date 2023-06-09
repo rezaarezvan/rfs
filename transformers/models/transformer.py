@@ -28,16 +28,20 @@ class Transformer(nn.Module):
         :return: A (b, c) tensor of log-probabilities over the
                  classes (where c is the nr. of classes).
         """
+        print(x.shape)
 
         # Generate token embeddings
         tokens = self.token_emb(x)
-        batch_size, seq_length, dim = tokens.size()
+        print(x.shape)
 
         # Apply positional encoding and feed tokens into the transformer blocks.
         x = self.pos_enc(tokens)
+        print(x.shape)
         x = self.tblocks(x)
+        print(x.shape)
 
         # Average pool over the time dimension and project to class probabilities
-        x = self.toprobs(x.mean(dim=1))
+        x = self.toprobs(x).mean(dim=1)
+        print(x.shape)
 
         return nn.functional.log_softmax(x, dim=1)
