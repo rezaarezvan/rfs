@@ -8,40 +8,57 @@ import tqdm
 # Where XX is for example: AA, AB ... AZ, BA, BB ... BZ, CA, CB ... CZ, DA, DB ... DZ
 # And wiki_XX.txt are for example wiki_00.txt, wiki_01.txt ... wiki_99.txt
 
-def dataset_generator(tokenizer=BertTokenizer.from_pretrained('bert-base-uncased'), directory="./text", batch_size=32):
-    # Count total number of files
-    total_files = sum([len(files) for r, d, files in os.walk(directory)])
-    progress_bar = tqdm.tqdm(total=total_files, desc="Processing files")
-    k = 0
+class TextDataset(torch.utils.data.Dataset):
+    def __init__(self, directory="./text", batch_size=32):
+        self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.directory = directory
+        self.batch_size = batch_size
+        self.data = list(self.dataset_generator())
 
-    for subdir in os.listdir(directory):
-        for filename in os.listdir(os.path.join(directory, subdir)):
-            with open(os.path.join(directory, subdir, filename), 'r') as f:
+    def dataset_generator(self):
+        # Count total number of files
+        total_files = sum([len(files)
+                          for r, d, files in os.walk(self.directory)])
+        progress_bar = tqdm.tqdm(total=total_files, desc="Processing files")
+        k = 0
 
-                # Read the whole file
-                text = f.read()
+        for subdir in os.listdir(self.directory):
+            for filename in os.listdir(os.path.join(self.directory, subdir)):
+                with open(os.path.join(self.directory, subdir, filename), 'r') as f:
 
-                # Tokenize the text
-                tokens = tokenizer.tokenize(text)
+                    # Read the whole file
+                    text = f.read()
 
-                # Numeericalize the tokens
-                input_ids = tokenizer.convert_tokens_to_ids(tokens)
+                    # Tokenize the text
+                    tokens = self.tokenizer.tokenize(text)
 
-                # Yield batches
-                for i in range(0, len(input_ids) - batch_size + 1, batch_size):
-                    yield torch.tensor(input_ids[i:i+batch_size], dtype=torch.long)
+                    # Numeericalize the tokens
+                    input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
 
-            # Update progress bar
-            progress_bar.update(1)
-            k += 1
-            print(k)
-            if k == 5:
-                print("break")
-                break
+                    # Yield batches
+                    for i in range(0, len(input_ids) - self.batch_size + 1, self.batch_size):
+                        inputs = torch.tensor(
+                            input_ids[i:i + self.batch_size], dtype=torch.long)
+                        targets = torch.tensor(
+                            input_ids[i + 1:i + 1 + self.batch_size], dtype=torch.long)
+                        yield inputs, targets
 
-        progress_bar.close()
+                # Update progress bar
+                progress_bar.update(1)
+                k += 1
+                print(k)
+                if k == 5:
+                    print("break")
+                    break
+
+            progress_bar.close()
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        return self.data[idx]
 
 
-def get_dataset(directory="./text", batch_size=32):
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    return dataset_generator(tokenizer=tokenizer, directory=directory, batch_size=batch_size)
+def get_dataset(directory="./data/text", batch_size=32):
+    return TextDataset(directory=directory, batch_size=batch_size)

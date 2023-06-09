@@ -1,80 +1,38 @@
 import torch
-from transformers import BertTokenizer
 from torch import nn, optim
 from torch.utils.data import DataLoader
-from models.transformer import Transformer
 from data.preprocess import get_dataset
-import tqdm
+from models.transformer import Transformer
 
+src_vocab_size = 5000
+tgt_vocab_size = 5000
+d_model = 512
+num_heads = 8
+num_layers = 6
+d_ff = 2048
+max_seq_length = 100
+dropout = 0.1
 
-class WikiTextDataset(torch.utils.data.Dataset):
-    def __init__(self, generator):
-        self.data = list(generator)
+transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model,
+                          num_heads, num_layers, d_ff, max_seq_length, dropout)
 
-    def __len__(self):
-        return len(self.data)
+# Generate random sample data
+# (batch_size, seq_length)
+src_data = torch.randint(1, src_vocab_size, (64, max_seq_length))
+# (batch_size, seq_length)
+tgt_data = torch.randint(1, tgt_vocab_size, (64, max_seq_length))
 
-    def __getitem__(self, idx):
-        return self.data[idx]
+criterion = nn.CrossEntropyLoss(ignore_index=0)
+optimizer = optim.Adam(transformer.parameters(),
+                       lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
 
+transformer.train()
 
-def train(transformer_model, train_data, num_epochs=5, learning_rate=1e-3, batch_size=64):
-    device = torch.device("cpu")
-    print(f'Using device {device}')
-
-    data_loader = DataLoader(train_data, batch_size=batch_size)
-    optimizer = optim.Adam(transformer_model.parameters(), lr=learning_rate)
-    criterion = nn.NLLLoss()
-
-    transformer_model.to(device)
-    criterion.to(device)
-
-    for epoch in range(num_epochs):
-        progress_bar = tqdm.tqdm(
-            data_loader, desc=f'Epoch {epoch+1}/{num_epochs}')
-        for _, batch in enumerate(data_loader):
-            inputs = batch[0].to(device)
-            targets = batch[1].to(device)
-            # Make targets be of shape [1, 10000]
-            targets = targets.unsqueeze(0)
-            targets = targets.permute(1, 0)
-            targets = targets.squeeze(0)
-            targets = targets.long()
-
-            # Forward pass
-            outputs = transformer_model.forward(inputs)
-            print(outputs.shape)
-            print(targets.shape)
-            loss = criterion(outputs, targets)
-
-            # Backward and optimize
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            # Update progress bar
-            progress_bar.set_postfix({'loss': loss.item()})
-
-    print('Finished Training')
-
-
-# Assume train_generator and test_generator are your preprocessed datasets
-train_generator = get_dataset('./data/text/')
-# test_generator = dataset_generator()
-
-train_data = WikiTextDataset(train_generator)
-# test_data = WikiTextDataset(test_generator)
-
-
-# Init model
-tokens = 32
-heads = 8
-depth = 6
-seq_length = 32
-num_tokens = BertTokenizer.from_pretrained('bert-base-uncased').vocab_size
-num_classes = 10_000
-
-transformer_model = Transformer(
-    tokens, heads, depth, seq_length, num_tokens, num_classes)
-
-train(transformer_model, train_data)
+for epoch in range(100):
+    optimizer.zero_grad()
+    output = transformer(src_data, tgt_data[:, :-1])
+    loss = criterion(output.contiguous().view(-1, tgt_vocab_size),
+                     tgt_data[:, 1:].contiguous().view(-1))
+    loss.backward()
+    optimizer.step()
+    print(f"Epoch: {epoch+1}, Loss: {loss.item()}")
