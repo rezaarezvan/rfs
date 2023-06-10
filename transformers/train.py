@@ -3,15 +3,8 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from data.preprocess import get_dataset
 from models.transformer import Transformer
+from config import *
 
-src_vocab_size = 5000
-tgt_vocab_size = 5000
-d_model = 512
-num_heads = 8
-num_layers = 6
-d_ff = 2048
-max_seq_length = 100
-dropout = 0.1
 
 transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model,
                           num_heads, num_layers, d_ff, max_seq_length, dropout)
