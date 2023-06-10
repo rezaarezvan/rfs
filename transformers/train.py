@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from data.preprocess import get_dataset
@@ -19,6 +20,9 @@ criterion = nn.CrossEntropyLoss(ignore_index=0)
 optimizer = optim.Adam(transformer.parameters(), lr=lr, betas=betas, eps=eps)
 transformer.train()
 
+pbar = tqdm(total=epochs, desc="Training", position=0,
+            leave=True, ncols=100, unit=" epoch(s)")
+
 for epoch in range(epochs):
     optimizer.zero_grad()
     output = transformer(src_data, tgt_data[:, :-1])
@@ -26,4 +30,9 @@ for epoch in range(epochs):
                      tgt_data[:, 1:].contiguous().view(-1))
     loss.backward()
     optimizer.step()
-    print(f"Epoch: {epoch+1}, Loss: {loss.item()}")
+
+    # Update progress bar
+    pbar.set_description(f"Epoch: {epoch+1}, Loss: {loss.item()}")
+    pbar.update()
+
+pbar.close()
