@@ -16,12 +16,10 @@ src_data = torch.randint(1, src_vocab_size, (64, max_seq_length))
 tgt_data = torch.randint(1, tgt_vocab_size, (64, max_seq_length))
 
 criterion = nn.CrossEntropyLoss(ignore_index=0)
-optimizer = optim.Adam(transformer.parameters(),
-                       lr=lr, betas=betas, eps=eps)
-
+optimizer = optim.Adam(transformer.parameters(), lr=lr, betas=betas, eps=eps)
 transformer.train()
 
-for epoch in range(100):
+for epoch in range(epochs):
     optimizer.zero_grad()
     output = transformer(src_data, tgt_data[:, :-1])
     loss = criterion(output.contiguous().view(-1, tgt_vocab_size),

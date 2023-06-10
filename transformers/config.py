@@ -6,6 +6,7 @@ num_layers = 6         # Number of layers in encoder and decoder
 d_ff = 2048            # Hidden layer size in feed forward network inside transformer
 max_seq_length = 100   # Maximum sequence length
 dropout = 0.1          # Dropout rate
+epochs = 100           # Number of epochs
 
 lr = 1e-4              # Learning rate
 betas = (0.9, 0.98)    # Betas for Adam optimizer
