@@ -17,7 +17,7 @@ tgt_data = torch.randint(1, tgt_vocab_size, (64, max_seq_length))
 
 criterion = nn.CrossEntropyLoss(ignore_index=0)
 optimizer = optim.Adam(transformer.parameters(),
-                       lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+                       lr=lr, betas=betas, eps=eps)
 
 transformer.train()
 
