@@ -12,9 +12,10 @@ transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model,
 
 # Generate random sample data
 # (batch_size, seq_length)
-src_data = torch.randint(1, src_vocab_size, (64, max_seq_length))
-# (batch_size, seq_length)
-tgt_data = torch.randint(1, tgt_vocab_size, (64, max_seq_length))
+src_data, tgt_data = get_dataset()
+# src_data = torch.randint(1, src_vocab_size, (64, max_seq_length))
+# # (batch_size, seq_length)
+# tgt_data = torch.randint(1, tgt_vocab_size, (64, max_seq_length))
 
 criterion = nn.CrossEntropyLoss(ignore_index=0)
 optimizer = optim.Adam(transformer.parameters(), lr=lr, betas=betas, eps=eps)
