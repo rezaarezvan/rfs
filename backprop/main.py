@@ -146,6 +146,30 @@ def forward_with_activations(
     return layer_output, activations
 
 
+def calculate_loss(params: List[LayerParams], image: np.ndarray, label: int) -> float:
+    prediction, _ = forward_with_activations(params, image)
+    return cross_entropy(prediction, label)
+
+
+def accuracy(params: List[LayerParams],
+             images: np.ndarray, labels: np.ndarray) -> float:
+    num_correct = 0
+    for data_index in range(len(labels)):
+        image, label = images[data_index, :], labels[data_index]
+        prediction = np.argmax(forward_with_activations(params, image)[0])
+        num_correct += prediction == label
+    return num_correct / len(images)
+
+
+def predict_labels(params: List[LayerParams], inputs: np.ndarray):
+    predicted_labels = []
+    for image in inputs:
+        probabilities, _ = forward_with_activations(params, image)
+        prediction = np.argmax(probabilities)
+        predicted_labels.append(prediction)
+    return np.array(predicted_labels)
+
+
 def main():
     inputs, labels = datasets.make_moons(100)
     plot_labels(inputs, labels)
