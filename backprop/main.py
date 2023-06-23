@@ -123,6 +123,29 @@ def init_params(sizes: List[int]) -> List[LayerParams]:
     return params
 
 
+def forward_with_activations(
+        params: List[LayerParams],
+        image: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
+    """Does a forward pass of our MLP.
+
+    Args:
+      params: The weights/biases of our MLP.
+      image: The image we want to do inference on.
+
+    Returns:
+      The output of the neural network- here, probabilities of each class.
+    """
+    layer_input = image
+    activations = []
+    for layer_index, layer_params in enumerate(params):
+        layer_output = np.matmul(layer_input, layer_params.weights)
+        layer_output += layer_params.biases
+        layer_output = _get_activation(layer_params.activation)(layer_output)
+        layer_input = layer_output
+        activations.append(layer_output)
+    return layer_output, activations
+
+
 def main():
     inputs, labels = datasets.make_moons(100)
     plot_labels(inputs, labels)
