@@ -4,6 +4,8 @@ from sklearn import datasets
 from typing import List, Callable, Tuple
 from matplotlib import pyplot as plt
 
+LEARNING_RATE = 1e-3
+
 
 def plot_labels(inputs: np.ndarray, labels: np.ndarray):
 
@@ -146,6 +148,37 @@ def forward_with_activations(
     return layer_output, activations
 
 
+def backward(params: List[LayerParams], image: np.ndarray,
+             label: int) -> List[LayerParams]:
+    probabilities, activations = forward_with_activations(params, image)
+    accumulated_gradient = mean_squared_error_derivative(probabilities, label)
+    new_params = [None for _ in params]
+    for reverse_layer_index, layer_params in enumerate(reversed(params)):
+
+        # We'll do some basic bookkeeping here to make things simpler to read.
+        layer_index = len(params) - 1 - reverse_layer_index
+        activation_derivative_func = _get_activation_derivative(
+            layer_params.activation)
+        prev_activation = activations[layer_index - 1]
+        activation_derivative = activation_derivative_func(
+            activations[layer_index])
+        bias_gradient = accumulated_gradient * activation_derivative
+        weight_gradient = np.outer(prev_activation, bias_gradient.T)
+        # weight_gradient = np.expand_dims(prev_activation, axis=1) @ np.expand_dims(bias_gradient, axis=1).T
+
+        # Now, we finally do our SGD step. Note that we could easily use a fancier
+        # optimizer here.
+        new_biases = layer_params.biases - LEARNING_RATE * bias_gradient
+        new_weights = layer_params.weights - LEARNING_RATE * weight_gradient
+        new_params[layer_index] = LayerParams(weights=new_weights,
+                                              biases=new_biases,
+                                              activation=layer_params.activation)
+        # Finally, we update our accumulated gradient with the current weights. This
+        # gets it ready for the next iteration.
+        accumulated_gradient = np.dot(bias_gradient, layer_params.weights.T)
+    return new_params
+
+
 def calculate_loss(params: List[LayerParams], image: np.ndarray, label: int) -> float:
     prediction, _ = forward_with_activations(params, image)
     return cross_entropy(prediction, label)
@@ -172,7 +205,16 @@ def predict_labels(params: List[LayerParams], inputs: np.ndarray):
 
 def main():
     inputs, labels = datasets.make_moons(100)
-    plot_labels(inputs, labels)
+    params = init_params([2, 128, 128, 128, 128, 2])
+
+    for epoch_index in range(100):
+        loss = sum([calculate_loss(params, inputs[data_index, :], labels[data_index])
+                   for data_index in range(len(labels))])/len(labels)
+        print(
+            f'Running epoch {epoch_index}, mean loss: {loss}, accuracy: {accuracy(params, inputs, labels)}')
+        for data_index in range(len(labels)):
+            image, label = inputs[data_index, :], labels[data_index]
+            params = backward(params, image, label)
 
 
 if __name__ == "__main__":
