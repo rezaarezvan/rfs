@@ -5,6 +5,7 @@ from typing import List, Callable, Tuple
 from matplotlib import pyplot as plt
 
 LEARNING_RATE = 1e-3
+NUM_EPOCHS = 300
 
 
 def plot_labels(inputs: np.ndarray, labels: np.ndarray):
@@ -207,7 +208,7 @@ def main():
     inputs, labels = datasets.make_moons(100)
     params = init_params([2, 128, 128, 128, 128, 2])
 
-    for epoch_index in range(100):
+    for epoch_index in range(NUM_EPOCHS):
         loss = sum([calculate_loss(params, inputs[data_index, :], labels[data_index])
                    for data_index in range(len(labels))])/len(labels)
         print(
@@ -215,6 +216,8 @@ def main():
         for data_index in range(len(labels)):
             image, label = inputs[data_index, :], labels[data_index]
             params = backward(params, image, label)
+
+    plot_predictions(inputs, labels, predict_labels(params, inputs))
 
 
 if __name__ == "__main__":
