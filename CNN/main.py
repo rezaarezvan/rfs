@@ -6,6 +6,7 @@ import torchvision  # https://pytorch.org
 # https://github.com/google/jaxtyping
 from jaxtyping import Array, Float, Int, PyTree
 import equinox as eqx
+from CNN import CNN
 
 
 # Hyperparameters
