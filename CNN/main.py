@@ -7,14 +7,8 @@ import torchvision  # https://pytorch.org
 from jaxtyping import Array, Float, Int, PyTree
 import equinox as eqx
 from CNN import CNN
+from parameters import BATCH_SIZE, LEARNING_RATE, PRINT_EVERY, SEED, STEPS
 
-
-# Hyperparameters
-BATCH_SIZE = 64
-LEARNING_RATE = 1e-4
-STEPS = 300
-PRINT_EVERY = 30
-SEED = 69420
 
 key = jax.random.PRNGKey(SEED)
 
@@ -43,45 +37,9 @@ testloader = torch.utils.data.DataLoader(
     test_dataset, batch_size=BATCH_SIZE, shuffle=True
 )
 
-dummy_x, dummy_y = next(iter(trainloader))
-dummy_x = dummy_x.numpy()
-dummy_y = dummy_y.numpy()
-print(dummy_x.shape)  # 64x1x28x28
-print(dummy_y.shape)  # 64
-print(dummy_y)
-
-
-class CNN(eqx.Module):
-    layers: list
-
-    def __init__(self, key):
-        key1, key2, key3, key4 = jax.random.split(key, 4)
-        # Standard CNN setup: convolutional layer, followed by flattening,
-        # with a small MLP on top.
-        self.layers = [
-            eqx.nn.Conv2d(1, 3, kernel_size=4, key=key1),
-            eqx.nn.MaxPool2d(kernel_size=2),
-            jax.nn.relu,
-            jnp.ravel,
-            eqx.nn.Linear(1728, 512, key=key2),
-            jax.nn.sigmoid,
-            eqx.nn.Linear(512, 64, key=key3),
-            jax.nn.relu,
-            eqx.nn.Linear(64, 10, key=key4),
-            jax.nn.log_softmax,
-        ]
-
-    def __call__(self, x: Float[Array, "1 28 28"]) -> Float[Array, "10"]:
-        for layer in self.layers:
-            x = layer(x)
-        return x
-
-
 key, subkey = jax.random.split(key, 2)
 model = CNN(subkey)
 
-
-# print(model)
 
 def loss(
     model: CNN, x: Float[Array, "batch 1 28 28"], y: Int[Array, " batch"]
@@ -103,16 +61,6 @@ def cross_entropy(
     pred_y = jnp.take_along_axis(pred_y, jnp.expand_dims(y, 1), axis=1)
     return -jnp.mean(pred_y)
 
-
-# Example loss
-loss_value = loss(model, dummy_x, dummy_y)
-print(loss_value.shape)  # scalar loss
-# Example inference
-output = jax.vmap(model)(dummy_x)
-print(output.shape)  # batch of predictions
-
-value, grads = eqx.filter_value_and_grad(loss)(model, dummy_x, dummy_y)
-print(value)
 
 loss = eqx.filter_jit(loss)  # JIT our loss function from earlier!
 
@@ -144,8 +92,6 @@ def evaluate(model: CNN, testloader: torch.utils.data.DataLoader):
         avg_acc += compute_accuracy(model, x, y)
     return avg_loss / len(testloader), avg_acc / len(testloader)
 
-
-print(evaluate(model, testloader))
 
 optim = optax.adamw(LEARNING_RATE)
 
