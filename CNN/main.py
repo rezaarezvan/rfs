@@ -1,56 +1,13 @@
 import jax
 import jax.numpy as jnp
-import optax  # https://github.com/deepmind/optax
-import torch  # https://pytorch.org
-import torchvision  # https://pytorch.org
-# https://github.com/google/jaxtyping
+import optax
+import torch
 from jaxtyping import Array, Float, Int, PyTree
 import equinox as eqx
+
+from data_loader import trainloader, testloader
 from CNN import CNN
-from parameters import BATCH_SIZE, LEARNING_RATE, PRINT_EVERY, SEED, STEPS
-
-
-key = jax.random.PRNGKey(SEED)
-
-normalise_data = torchvision.transforms.Compose(
-    [
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.5,), (0.5,)),
-    ]
-)
-train_dataset = torchvision.datasets.MNIST(
-    "MNIST",
-    train=True,
-    download=True,
-    transform=normalise_data,
-)
-test_dataset = torchvision.datasets.MNIST(
-    "MNIST",
-    train=False,
-    download=True,
-    transform=normalise_data,
-)
-trainloader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=BATCH_SIZE, shuffle=True
-)
-testloader = torch.utils.data.DataLoader(
-    test_dataset, batch_size=BATCH_SIZE, shuffle=True
-)
-
-key, subkey = jax.random.split(key, 2)
-model = CNN(subkey)
-
-
-def loss(
-    model: CNN, x: Float[Array, "batch 1 28 28"], y: Int[Array, " batch"]
-) -> Float[Array, ""]:
-    # Our input has the shape (BATCH_SIZE, 1, 28, 28), but our model operations on
-    # a single input input image of shape (1, 28, 28).
-    #
-    # Therefore, we have to use jax.vmap, which in this case maps our model over the
-    # leading (batch) axis.
-    pred_y = jax.vmap(model)(x)
-    return cross_entropy(y, pred_y)
+from parameters import LEARNING_RATE, PRINT_EVERY, SEED, STEPS
 
 
 def cross_entropy(
@@ -62,7 +19,19 @@ def cross_entropy(
     return -jnp.mean(pred_y)
 
 
-loss = eqx.filter_jit(loss)  # JIT our loss function from earlier!
+def loss_fn(
+    model: CNN, x: Float[Array, "batch 1 28 28"], y: Int[Array, " batch"]
+) -> Float[Array, ""]:
+    # Our input has the shape (BATCH_SIZE, 1, 28, 28), but our model operations on
+    # a single input input image of shape (1, 28, 28).
+    #
+    # Therefore, we have to use jax.vmap, which in this case maps our model over the
+    # leading (batch) axis.
+    pred_y = jax.vmap(model)(x)
+    return cross_entropy(y, pred_y)
+
+
+loss_fn = eqx.filter_jit(loss_fn)  # JIT our loss function from earlier!
 
 
 @eqx.filter_jit
@@ -88,12 +57,9 @@ def evaluate(model: CNN, testloader: torch.utils.data.DataLoader):
         y = y.numpy()
         # Note that all the JAX operations happen inside `loss` and `compute_accuracy`,
         # and both have JIT wrappers, so this is fast.
-        avg_loss += loss(model, x, y)
+        avg_loss += loss_fn(model, x, y)
         avg_acc += compute_accuracy(model, x, y)
     return avg_loss / len(testloader), avg_acc / len(testloader)
-
-
-optim = optax.adamw(LEARNING_RATE)
 
 
 def train(
@@ -118,7 +84,7 @@ def train(
         x: Float[Array, "batch 1 28 28"],
         y: Int[Array, " batch"],
     ):
-        loss_value, grads = eqx.filter_value_and_grad(loss)(model, x, y)
+        loss_value, grads = eqx.filter_value_and_grad(loss_fn)(model, x, y)
         updates, opt_state = optim.update(grads, opt_state, model)
         model = eqx.apply_updates(model, updates)
         return model, opt_state, loss_value
@@ -143,4 +109,13 @@ def train(
     return model
 
 
-model = train(model, trainloader, testloader, optim, STEPS, PRINT_EVERY)
+def main():
+    key = jax.random.PRNGKey(SEED)
+    key, subkey = jax.random.split(key, 2)
+    model = CNN(subkey)
+    optim = optax.adamw(LEARNING_RATE)
+    model = train(model, trainloader, testloader, optim, STEPS, PRINT_EVERY)
+
+
+if __name__ == "__main__":
+    main()
