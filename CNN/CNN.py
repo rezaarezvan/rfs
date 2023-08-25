@@ -9,8 +9,6 @@ class CNN(eqx.Module):
 
     def __init__(self, key):
         key1, key2, key3, key4 = jax.random.split(key, 4)
-        # Standard CNN setup: convolutional layer, followed by flattening,
-        # with a small MLP on top.
         self.layers = [
             eqx.nn.Conv2d(1, 3, kernel_size=4, key=key1),
             eqx.nn.MaxPool2d(kernel_size=2),
@@ -24,7 +22,7 @@ class CNN(eqx.Module):
             jax.nn.log_softmax,
         ]
 
-    def __call__(self, x: Float[Array, "1 28 28"]) -> Float[Array, "10"]:
+    def __call__(self, x: Float[Array, "1, 28, 28"]) -> Float[Array, "10"]:
         for layer in self.layers:
             x = layer(x)
         return x

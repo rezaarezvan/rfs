@@ -9,7 +9,7 @@ from jaxtyping import Float, Int, Array
 
 @eqx.filter_jit
 def compute_accuracy(
-    model: CNN, x: Float[Array, "batch 1 28 28"], y: Int[Array, " batch"]
+    model: CNN, x: Float[Array, "batch 1, 28, 28"], y: Int[Array, " batch"]
 ) -> Float[Array, ""]:
     """This function takes as input the current model
     and computes the average accuracy on a batch.
