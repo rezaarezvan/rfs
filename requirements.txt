@@ -1,5 +1,5 @@
 equinox==0.10.11
-jax==0.4.15
+jax==0.4.14
 jaxtyping==0.2.21
 matplotlib==3.7.1
 numpy==1.25.1
