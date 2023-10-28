@@ -1,16 +1,19 @@
-# parameters.py
+from dataclasses import dataclass
 
-# Dataset parameters
-IMG_SIZE = 32  # size of the images in the CIFAR-10 dataset
-PATCH_SIZE = 4  # size of the patches to break the images into
-NUM_CLASSES = 10  # number of classes in the CIFAR-10 dataset
+@dataclass
+class DatasetParams:
+    img_size: int = 32  # CIFAR-10 dataset image size
+    patch_size: int = 4  # Patch size to break images into
+    num_classes: int = 10  # Number of CIFAR-10 dataset classes
 
-# Model parameters
-EMBED_DIM = 64  # dimension of the patch embeddings
-NUM_HEADS = 4  # number of attention heads
-NUM_LAYERS = 4  # number of transformer layers
+@dataclass
+class ModelParams:
+    embed_dim: int = 64  # Patch embedding dimension
+    num_heads: int = 4  # Number of attention heads
+    num_layers: int = 4  # Number of transformer layers
 
-# Training parameters
-BATCH_SIZE = 64  # number of images per batch
-LEARNING_RATE = 1e-3  # learning rate for the optimizer
-NUM_EPOCHS = 10  # number of times to iterate over the entire dataset
+@dataclass
+class TrainingParams:
+    batch_size: int = 64  # Batch size for training
+    learning_rate: float = 1e-3  # Optimizer learning rate
+    num_epochs: int = 10  # Number of epochs for training

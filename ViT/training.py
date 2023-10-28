@@ -21,8 +21,9 @@ optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Training loop
 
-
 def train():
+    model.train()  # Ensure the model is in training mode
+    total_loss = 0
     for epoch in range(NUM_EPOCHS):
         for i, data in enumerate(train_loader, 0):
             # get the inputs; data is a list of [inputs, labels]
@@ -34,12 +35,14 @@ def train():
             # forward + backward + optimize
             outputs = model(inputs)
             loss = criterion(outputs, labels)
+            total_loss += loss.item()
             loss.backward()
             optimizer.step()
 
             # print statistics
             if i % 2000 == 1999:    # print every 2000 mini-batches
-                print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, loss.item()))
+                print('[%d, %5d] average loss: %.3f' % (epoch + 1, i + 1, total_loss / 2000))
+                total_loss = 0
 
     print('Finished Training')
     # save the model after training
