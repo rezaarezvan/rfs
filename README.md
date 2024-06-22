@@ -12,7 +12,7 @@ To get started with 'rfs', clone this repository and install the required depend
 ```
 git clone https://github.com/rezaarezvan/rfs.git
 cd rfs
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 ## Components

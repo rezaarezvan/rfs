@@ -1,0 +1,10 @@
+# template `config.yaml`
+name: "project_name"
+
+device: "cuda"
+batch_size: 32
+epochs: 40
+learning_rate: 0.001
+data_path: "../../../data/"
+model_save_path: "models/"
+log_dir: "logs/"
