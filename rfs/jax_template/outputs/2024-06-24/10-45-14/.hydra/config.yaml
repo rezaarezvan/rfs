@@ -1,0 +1,18 @@
+seed: 42
+project_name: my_project_jax
+run_name: ${now:%Y-%m-%d_%H-%M-%S}
+data:
+  buffer_size: 1000
+model:
+  input_dim: 784
+  hidden_dim: 512
+  output_dim: 10
+training:
+  epochs: 40
+  batch_size: 32
+  lr: 0.001
+paths:
+  data_dir: data/
+  output_dir: outputs/
+  log_dir: logs/
+  checkpoint_dir: checkpoints/
