@@ -1,0 +1,105 @@
+{
+    "os": "Linux-6.5.0-41-generic-x86_64-with-glibc2.35",
+    "python": "3.10.10",
+    "heartbeatAt": "2024-06-29T18:20:53.099907",
+    "startedAt": "2024-06-29T18:20:53.028664",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/home/reza/Code/rfs/rfs/CNN/main.py",
+    "codePath": "rfs/CNN/main.py",
+    "git": {
+        "remote": "https://github.com/rezaarezvan/rfs",
+        "commit": "d3536aff5c8c83824a3539073ea966a77a57313c"
+    },
+    "email": "rezvanr2378@gmail.com",
+    "root": "/home/reza/Code/rfs",
+    "host": "ubuntu",
+    "username": "reza",
+    "executable": "/home/reza/miniconda3/bin/python3",
+    "cpu_count": 6,
+    "cpu_count_logical": 12,
+    "cpu_freq": {
+        "current": 3761.713166666667,
+        "min": 2200.0,
+        "max": 3700.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3706.288,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4395.394,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3717.071,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4647.668,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4364.304,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3717.533,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4253.568,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4015.758,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3718.464,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4202.876,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 3832.561,
+            "min": 2200.0,
+            "max": 3700.0
+        },
+        {
+            "current": 4121.245,
+            "min": 2200.0,
+            "max": 3700.0
+        }
+    ],
+    "disk": {
+        "total": 239.24888610839844,
+        "used": 143.4743194580078
+    },
+    "gpu": "NVIDIA GeForce RTX 3060 Ti",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3060 Ti",
+            "memory_total": 8589934592
+        }
+    ],
+    "memory": {
+        "total": 31.23638153076172
+    }
+}

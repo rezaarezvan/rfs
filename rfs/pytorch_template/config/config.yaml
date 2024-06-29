@@ -17,8 +17,8 @@ training:
   epochs: 40
   batch_size: 32
   lr: 0.001
-  use_gpu: false
-  use_amp: false
+  use_gpu: true
+  use_amp: true
   accumulate_grad_batches: 1
   patience: 10
 

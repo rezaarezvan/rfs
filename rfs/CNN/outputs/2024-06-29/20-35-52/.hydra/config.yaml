@@ -1,0 +1,27 @@
+seed: 42
+project_name: my_project
+run_name: ${now:%Y-%m-%d_%H-%M-%S}
+data:
+  mean:
+  - 0.1307
+  std:
+  - 0.3081
+  num_workers: 4
+model:
+  input_dim: 784
+  hidden_dim: 128
+  output_dim: 10
+  dropout: 0.5
+training:
+  epochs: 40
+  batch_size: 32
+  lr: 0.001
+  use_gpu: true
+  use_amp: true
+  accumulate_grad_batches: 1
+  patience: 10
+paths:
+  data_dir: ../../data/
+  output_dir: outputs/
+  log_dir: logs/
+  checkpoint_dir: checkpoints/
