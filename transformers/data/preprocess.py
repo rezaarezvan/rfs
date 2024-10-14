@@ -1,7 +1,8 @@
 import os
 import torch
-from transformers import BertTokenizer
 import tqdm
+
+from transformers import BertTokenizer
 
 
 # .txt files is under text/XX/wiki_XX.txt
@@ -16,7 +17,6 @@ class TextDataset(torch.utils.data.Dataset):
         self.data = list(self.dataset_generator())
 
     def dataset_generator(self):
-        # Count total number of files
         total_files = sum([len(files)
                           for r, d, files in os.walk(self.directory)])
         progress_bar = tqdm.tqdm(total=total_files, desc="Processing files")
@@ -26,16 +26,10 @@ class TextDataset(torch.utils.data.Dataset):
             for filename in os.listdir(os.path.join(self.directory, subdir)):
                 with open(os.path.join(self.directory, subdir, filename), 'r') as f:
 
-                    # Read the whole file
                     text = f.read()
-
-                    # Tokenize the text
                     tokens = self.tokenizer.tokenize(text)
-
-                    # Numeericalize the tokens
                     input_ids = self.tokenizer.convert_tokens_to_ids(tokens)
 
-                    # Yield batches
                     for i in range(0, len(input_ids) - self.batch_size + 1, self.batch_size):
                         inputs = torch.tensor(
                             input_ids[i:i + self.batch_size], dtype=torch.long)
@@ -43,7 +37,6 @@ class TextDataset(torch.utils.data.Dataset):
                             input_ids[i + 1:i + 1 + self.batch_size], dtype=torch.long)
                         yield inputs, targets
 
-                # Update progress bar
                 progress_bar.update(1)
                 k += 1
                 print(k)
