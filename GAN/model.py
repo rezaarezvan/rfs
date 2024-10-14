@@ -1,4 +1,3 @@
-import torch
 from torch import nn
 from parameters import Params
 
@@ -8,7 +7,6 @@ class Generator(nn.Module):
         super().__init__()
 
         self.main = nn.Sequential(
-            # input is a noise vector of size latent_dim
             nn.Linear(Params.latent_dim, 256),
             nn.LeakyReLU(0.2, inplace=True),
 
@@ -19,7 +17,7 @@ class Generator(nn.Module):
             nn.LeakyReLU(0.2, inplace=True),
 
             nn.Linear(1024, Params.image_dim),
-            nn.Tanh()  # output is an image
+            nn.Tanh()
         )
 
     def forward(self, input):
@@ -31,7 +29,6 @@ class Discriminator(nn.Module):
         super().__init__()
 
         self.main = nn.Sequential(
-            # input is an image
             nn.Linear(Params.image_dim, 1024),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
@@ -45,7 +42,7 @@ class Discriminator(nn.Module):
             nn.Dropout(0.3),
 
             nn.Linear(256, 1),
-            nn.Sigmoid()  # output is a probability that the image is real
+            nn.Sigmoid()
         )
 
     def forward(self, input):

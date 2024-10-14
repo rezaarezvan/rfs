@@ -1,7 +1,6 @@
+from parameters import Params
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
-
-from parameters import Params
 
 
 def get_data_loader():

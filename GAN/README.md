@@ -1,6 +1,4 @@
-# GANs
-
-### Generative adversarial networks
+# Generative adversarial networks
 
 ### Acknowledgements
-The code is based on the paper "Generative Adversarial Nets" by Ian Goodfellow et al. (2014).
+The code is based on the [paper](https://arxiv.org/abs/1406.2661)
