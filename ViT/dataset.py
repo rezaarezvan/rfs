@@ -1,8 +1,7 @@
-import torch
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
-
 from parameters import DatasetParams, TrainingParams
+
 
 class DatasetLoader:
     def __init__(self, root='./data', download=True, batch_size=64):
@@ -32,11 +31,13 @@ class DatasetLoader:
         # DataLoader for batching, shuffling and loading data in parallel
         return DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle, num_workers=4, pin_memory=True)
 
+
 # Parameters for dataset and training
 dataset_params = DatasetParams()
 training_params = TrainingParams()
 
 # Initialize DatasetLoader
-data_loader = DatasetLoader(dataset_params.root, dataset_params.download, training_params.batch_size)
+data_loader = DatasetLoader(
+    dataset_params.root, dataset_params.download, training_params.batch_size)
 train_loader = data_loader.train_loader
 test_loader = data_loader.test_loader

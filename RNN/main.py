@@ -1,8 +1,9 @@
 import jax
-import jax.numpy as jnp
-import jax.random as jrandom
 import optax
 import equinox as eqx
+import jax.numpy as jnp
+import jax.random as jrandom
+
 from data_loader import get_data, dataloader
 from model import RNN
 

@@ -1,8 +1,8 @@
-import equinox as eqx
 import jax
+import jax.lax as lax
+import equinox as eqx
 import jax.numpy as jnp
 import jax.random as jrandom
-import jax.lax as lax
 
 
 class RNN(eqx.Module):
@@ -26,5 +26,4 @@ class RNN(eqx.Module):
             return self.cell(inp, carry), None
 
         out, _ = lax.scan(f, hidden, input)
-        # sigmoid because we're performing binary classification
         return jax.nn.sigmoid(self.linear(out) + self.bias)
