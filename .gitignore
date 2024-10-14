@@ -161,3 +161,7 @@ cython_debug/
 
 transformers/data/
 .DS_Store
+DDPM/datasets/
+DDPM/models/
+DDPM/results/
+DDPM/runs/
