@@ -1,15 +1,15 @@
 import numpy as np
 import dataclasses
+
 from sklearn import datasets
-from typing import List, Callable, Tuple
 from matplotlib import pyplot as plt
+from typing import List, Callable, Tuple
 
 LEARNING_RATE = 1e-3
 NUM_EPOCHS = 300
 
 
 def plot_labels(inputs: np.ndarray, labels: np.ndarray):
-
     plt.scatter(inputs[labels == 0, 0],
                 inputs[labels == 0, 1], label="class 0")
 
@@ -82,9 +82,6 @@ def mean_squared_error_derivative(prediction: np.ndarray, label: int) -> float:
     one_hot[label] = 1
     return prediction - one_hot
 
-# We use a dataclass here to provide a convenient grouping for everything that
-# makes up our layer.
-
 
 @dataclasses.dataclass
 class LayerParams:
@@ -104,14 +101,6 @@ def _initialize_weights(in_dims: int, out_dims: int) -> np.ndarray:
 
 
 def init_params(sizes: List[int]) -> List[LayerParams]:
-    """Initializes the layer params for a MLP.
-
-    Args:
-      sizes: List of network sizes. Must include input size as the 0th layer.
-
-    Returns:
-      params for network.
-    """
     params = []
     for size_index in range(len(sizes) - 1):
         in_dims = sizes[size_index]
@@ -129,18 +118,9 @@ def init_params(sizes: List[int]) -> List[LayerParams]:
 def forward_with_activations(
         params: List[LayerParams],
         image: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
-    """Does a forward pass of our MLP.
-
-    Args:
-      params: The weights/biases of our MLP.
-      image: The image we want to do inference on.
-
-    Returns:
-      The output of the neural network- here, probabilities of each class.
-    """
     layer_input = image
     activations = []
-    for layer_index, layer_params in enumerate(params):
+    for _, layer_params in enumerate(params):
         layer_output = np.matmul(layer_input, layer_params.weights)
         layer_output += layer_params.biases
         layer_output = _get_activation(layer_params.activation)(layer_output)
@@ -156,7 +136,6 @@ def backward(params: List[LayerParams], image: np.ndarray,
     new_params = [None for _ in params]
     for reverse_layer_index, layer_params in enumerate(reversed(params)):
 
-        # We'll do some basic bookkeeping here to make things simpler to read.
         layer_index = len(params) - 1 - reverse_layer_index
         activation_derivative_func = _get_activation_derivative(
             layer_params.activation)
@@ -165,17 +144,12 @@ def backward(params: List[LayerParams], image: np.ndarray,
             activations[layer_index])
         bias_gradient = accumulated_gradient * activation_derivative
         weight_gradient = np.outer(prev_activation, bias_gradient.T)
-        # weight_gradient = np.expand_dims(prev_activation, axis=1) @ np.expand_dims(bias_gradient, axis=1).T
 
-        # Now, we finally do our SGD step. Note that we could easily use a fancier
-        # optimizer here.
         new_biases = layer_params.biases - LEARNING_RATE * bias_gradient
         new_weights = layer_params.weights - LEARNING_RATE * weight_gradient
         new_params[layer_index] = LayerParams(weights=new_weights,
                                               biases=new_biases,
                                               activation=layer_params.activation)
-        # Finally, we update our accumulated gradient with the current weights. This
-        # gets it ready for the next iteration.
         accumulated_gradient = np.dot(bias_gradient, layer_params.weights.T)
     return new_params
 
