@@ -1,11 +1,13 @@
+import copy
 import torch
 import logging
+import numpy as np
 import torch.nn as nn
 
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
-from modules import UNet
+from modules import UNet, UNetConditional, EMA
 from utils import get_data, setup_logging, save_images
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s: %(message)s',
@@ -39,7 +41,7 @@ class Diffusion:
     def sample_timestemps(self, n):
         return torch.randint(low=1, high=self.num_noise_steps, size=(n,))
 
-    def sample(self, model, n):
+    def sample(self, model, n, labels, cfg_scales=3):
         logging.info(f"Sampling {n} new images...")
         model.eval()
 
@@ -49,7 +51,11 @@ class Diffusion:
 
             for i in tqdm(reversed(range(1, self.num_noise_steps)), position=0):
                 t = (torch.ones(n) * i).long().to(self.device)
-                predicted_noise = model(x, t)
+                predicted_noise = model(x, t, labels)
+                if cfg_scales > 0:
+                    unconditional = model(x, t, None)
+                    predicted_noise = torch.lerp(
+                        unconditional, predicted_noise, cfg_scales)
                 alpha = self.alpha[t][:, None, None, None]
                 alpha_hat = self.alpha_hat[t][:, None, None, None]
                 beta = self.beta[t][:, None, None, None]
@@ -74,32 +80,43 @@ def train(args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     dataloader = get_data(args)
     model = UNet().to(device)
+    # model = UNetConditional(num_classes=args.nums_classes).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     mse = nn.MSELoss()
     diffusion = Diffusion(img_size=args.image_size)
     logger = SummaryWriter(f'runs/{args.run_name}')
     l = len(dataloader)
+    # ema = EMA(beta=0.995)
+    # ema_model = copy.deepcopy(model).eval().requires_grad_(False)
 
     for epoch in range(args.epochs):
         logging.info(f"Starting epoch {epoch + 1}/{args.epochs}...")
         pbar = tqdm(dataloader)
-        for i, (images, _) in enumerate(pbar):
-            images = images.to(device)
+        for i, (images, labels) in enumerate(pbar):
+            images, labels = images.to(device), labels.to(device)
             t = diffusion.sample_timestemps(images.shape[0]).to(device)
             x_t, noise = diffusion.noise_images(images, t)
+            # if np.random.random() < 0.1:
+            #     labels = None
             predicted_noise = model(x_t, t)
+            # predicted_noise = model(x_t, t, labels)
             loss = mse(noise, predicted_noise)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            # ema.step_ema(ema_model, model)
 
             pbar.set_postfix(MSE=loss.item())
             logger.add_scalar("MSE", loss.item(), global_step=epoch*l + i)
 
-        sampled_images = diffusion.sample(model, n=images.shape[0])
+        sampled_images = diffusion.sample(
+            model, n=images.shape[0], labels=None, cfg_scales=0)
+        # ema_sampled_images = diffusion.sample(ema_model, n=images.shape[0])
         save_images(sampled_images, f"results/{args.run_name}/{epoch}.png")
+        # save_images(ema_sampled_images, f"results/{args.run_name}/ema_{epoch}.png
         torch.save(model.state_dict(), f"models/{args.run_name}/{epoch}.pt")
+        # torch.save(ema_model.state_dict(), f"models/{args.run_name}/ema_{epoch}.pt")
 
 
 def main():
