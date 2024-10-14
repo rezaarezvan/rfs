@@ -1,11 +1,11 @@
 import optax
 import torch
 import equinox as eqx
-from jaxtyping import PyTree, Float, Int, Array
-from loss import loss_fn
-from eval import evaluate
 
 from CNN import CNN
+from loss import loss_fn
+from eval import evaluate
+from jaxtyping import PyTree, Float, Int, Array
 
 
 def train(
@@ -16,13 +16,8 @@ def train(
     steps: int,
     print_every: int,
 ) -> CNN:
-    # Just like earlier: It only makes sense to train the arrays in our model,
-    # so filter out everything else.
     opt_state = optim.init(eqx.filter(model, eqx.is_array))
 
-    # Always wrap everything -- computing gradients, running the optimiser, updating
-    # the model -- into a single JIT region. This ensures things run as fast as
-    # possible.
     @eqx.filter_jit
     def make_step(
         model: CNN,
@@ -35,14 +30,11 @@ def train(
         model = eqx.apply_updates(model, updates)
         return model, opt_state, loss_value
 
-    # Loop over our training dataset as many times as we need.
     def infinite_trainloader():
         while True:
             yield from trainloader
 
     for step, (x, y) in zip(range(steps), infinite_trainloader()):
-        # PyTorch dataloaders give PyTorch tensors by default,
-        # so convert them to NumPy arrays.
         x = x.numpy()
         y = y.numpy()
         model, opt_state, train_loss = make_step(model, opt_state, x, y)
@@ -50,6 +42,7 @@ def train(
             test_loss, test_accuracy = evaluate(model, testloader)
             print(
                 f"{step=}, train_loss={train_loss.item()}, "
-                f"test_loss={test_loss.item()}, test_accuracy={test_accuracy.item()}"
+                f"test_loss={test_loss.item()}, test_accuracy={
+                    test_accuracy.item()}"
             )
     return model
