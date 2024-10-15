@@ -1,13 +1,12 @@
 from torch import nn
-from parameters import Params
 
 
 class Generator(nn.Module):
-    def __init__(self):
+    def __init__(self, latent_dim, image_dim):
         super().__init__()
 
         self.main = nn.Sequential(
-            nn.Linear(Params.latent_dim, 256),
+            nn.Linear(latent_dim, 256),
             nn.LeakyReLU(0.2, inplace=True),
 
             nn.Linear(256, 512),
@@ -16,7 +15,7 @@ class Generator(nn.Module):
             nn.Linear(512, 1024),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Linear(1024, Params.image_dim),
+            nn.Linear(1024, image_dim),
             nn.Tanh()
         )
 
@@ -25,11 +24,11 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self):
+    def __init__(self, image_dim):
         super().__init__()
 
         self.main = nn.Sequential(
-            nn.Linear(Params.image_dim, 1024),
+            nn.Linear(image_dim, 1024),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Dropout(0.3),
 

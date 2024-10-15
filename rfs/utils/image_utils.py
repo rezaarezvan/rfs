@@ -1,4 +1,3 @@
-import os
 import torch
 import torchvision
 import matplotlib.pyplot as plt
@@ -33,10 +32,3 @@ def get_data(args):
         args.dataset_path, transform=transforms)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True)
     return dataloader
-
-
-def setup_logging(run_name):
-    os.makedirs('models', exist_ok=True)
-    os.makedirs('results', exist_ok=True)
-    os.makedirs(f'models/{run_name}', exist_ok=True)
-    os.makedirs(f'results/{run_name}', exist_ok=True)
