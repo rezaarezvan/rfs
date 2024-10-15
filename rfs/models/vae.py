@@ -1,20 +1,29 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class VAE(nn.Module):
     def __init__(self,
                  input_channels=1,
                  latent_dim=4,
-                 hidden_dims=None):
+                 hidden_dims=None,
+                 conditional=False,
+                 num_classes=10
+                 ):
         super(VAE, self).__init__()
 
         self.input_channels = input_channels
         self.latent_dim = latent_dim
+        self.conditional = conditional
+        self.num_classes = num_classes
 
         if hidden_dims is None:
             hidden_dims = [32, 64]
         self.hidden_dims = hidden_dims
+
+        if self.conditional:
+            self.input_channels += num_classes
 
         self.encoder = self.build_encoder(input_channels, self.hidden_dims)
         self.decoder = self.build_decoder(input_channels, self.hidden_dims)
@@ -52,7 +61,10 @@ class VAE(nn.Module):
         modules = []
         in_channels = hidden_dims[0]
 
-        self.decoder_input = nn.Linear(self.latent_dim, self.flatten_dim)
+        input_dim = self.latent_dim + \
+            self.num_classes if self.conditional else self.latent_dim
+
+        self.decoder_input = nn.Linear(input_dim, self.flatten_dim)
 
         for i in range(len(hidden_dims) - 1):
             out_channels = hidden_dims[i + 1]
@@ -75,7 +87,13 @@ class VAE(nn.Module):
 
         return decoder
 
-    def encode(self, input):
+    def encode(self, input, labels=None):
+        if self.conditional and labels is not None:
+            y = F.one_hot(labels, num_classes=self.num_classes).float()
+            y = y.view(y.size(0), self.num_classes, 1, 1)
+            y = y.expand(-1, -1, input.size(2), input.size(3))
+            input = torch.cat([input, y], dim=1)
+
         result = self.encoder(input)
         result = torch.flatten(result, start_dim=1)
         mu = self.fc_mu(result)
@@ -87,15 +105,19 @@ class VAE(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def decode(self, z):
+    def decode(self, z, labels=None):
+        if self.conditional and labels is not None:
+            y = F.one_hot(labels, num_classes=self.num_classes).float()
+            z = torch.cat([z, y], dim=1)
+
         result = self.decoder_input(z)
         result = result.view(-1, *self.last_shape)
         result = self.decoder(result)
         result = self.final_layer(result)
         return result
 
-    def forward(self, input):
-        mu, log_var = self.encode(input)
+    def forward(self, input, labels=None):
+        mu, log_var = self.encode(input, labels)
         z = self.reparameterize(mu, log_var)
-        reconstructed = self.decode(z)
+        reconstructed = self.decode(z, labels)
         return reconstructed, mu, log_var

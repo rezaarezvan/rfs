@@ -17,18 +17,19 @@ def loss_function(recon_x, x, mu, log_var):
 
 
 train_loader = get_mnist_loader(32, train=True)
+conditional = True
 
 for epoch in range(10):
     model.train()
     train_loss = 0
-    for data, _ in train_loader:  # Assuming labels are not needed
-        data = data.to(DEVICE)
+    for data, labels in train_loader:
+        data, labels = data.to(DEVICE), labels.to(DEVICE)
         optimizer.zero_grad()
-        recon_batch, mu, log_var = model(data)
+        recon_batch, mu, log_var = model(
+            data, labels) if conditional else model(data)
         loss = loss_function(recon_batch, data, mu, log_var)
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
     print(f'Epoch {epoch}: Average loss {
           train_loss / len(train_loader.dataset)}')
-
