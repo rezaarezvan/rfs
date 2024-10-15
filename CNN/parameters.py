@@ -1,6 +1,0 @@
-# Hyperparameters
-BATCH_SIZE = 64
-LEARNING_RATE = 1e-4
-STEPS = 300
-PRINT_EVERY = 10
-SEED = 69420
