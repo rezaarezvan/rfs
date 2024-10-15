@@ -1,12 +1,13 @@
 import torch
 
 from torch import optim, nn
+from rfs import DEVICE
 from rfs.models.unet import UNet
 from rfs.data.dataloaders import get_oxford_pet_dataloaders
 
 
 def main():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = DEVICE
     model = UNet(n_channels=3, n_classes=1).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-4)
     criterion = nn.BCEWithLogitsLoss()
@@ -33,4 +34,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

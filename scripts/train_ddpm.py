@@ -6,6 +6,7 @@ import torch.nn as nn
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 
+from rfs import DEVICE
 from rfs.models.diffusion import Diffusion, UNet, UNetConditional, EMA
 from rfs.utils.logging import setup_logging
 from rfs.utils.image_utils import save_images
@@ -14,7 +15,7 @@ from rfs.data.dataloaders import get_data_from_path
 
 def train(args):
     setup_logging(args.run_name)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = DEVICE
     dataloader = get_data_from_path(args)
     model = UNet().to(device)
     # model = UNetConditional(num_classes=args.nums_classes).to(device)

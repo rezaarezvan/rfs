@@ -30,7 +30,7 @@ class Trainer:
             for data, target in dataloader:
                 data, target = data.to(self.device), target.to(self.device)
                 output = self.model(data)
-                loss = self.loss_fn(output, target, reduction='sum')
+                loss = self.loss_fn(output, target)
                 total_loss += loss.item()
                 pred = output.argmax(dim=1)
                 correct += pred.eq(target).sum().item()

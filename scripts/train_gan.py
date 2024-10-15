@@ -3,19 +3,19 @@ import torch
 
 from torch import nn, optim
 from torchvision.utils import save_image
+from rfs import DEVICE
 from rfs.models.gan import Generator, Discriminator
 from rfs.data.dataloaders import get_mnist_loader
 
 
 def main():
-    # Hyperparameters
     epochs = 50
     batch_size = 128
     learning_rate = 0.0002
     latent_dim = 100
     image_dim = 28 * 28
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = DEVICE
 
     generator = Generator(latent_dim, image_dim).to(device)
     discriminator = Discriminator(image_dim).to(device)

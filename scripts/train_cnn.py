@@ -1,13 +1,13 @@
 import torch
 
-from tqdm import tqdm
+from rfs import DEVICE
 from rfs.models.cnn import SimpleCNN
 from rfs.trainers.trainer import Trainer
 from rfs.data.dataloaders import get_mnist_loader
 
 
 def main():
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = DEVICE
     model = SimpleCNN().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     loss_fn = torch.nn.CrossEntropyLoss()

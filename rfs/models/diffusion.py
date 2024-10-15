@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from rfs import DEVICE
 from tqdm import tqdm
 
 
@@ -11,9 +12,7 @@ class Diffusion:
         self.beta_start = beta_start
         self.beta_end = beta_end
         self.img_size = img_size
-        self.device = torch.device(
-            'cuda' if torch.cuda.is_available() else 'cpu')
-
+        self.device = DEVICE
         self.beta = self.prepare_noise_schedule().to(self.device)
         self.alpha = 1 - self.beta
         self.alpha_hat = torch.cumprod(self.alpha, dim=0)
@@ -199,8 +198,7 @@ class SelfAttention(nn.Module):
 class UNet(nn.Module):
     def __init__(self, num_in_channels=3, num_out_channels=3, time_dim=256):
         super().__init__()
-        self.device = torch.device(
-            'cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = DEVICE
 
         self.num_in_channels = num_in_channels
         self.num_out_channels = num_out_channels
@@ -270,8 +268,7 @@ class UNet(nn.Module):
 class UNetConditional(nn.Module):
     def __init__(self, num_in_channels=3, num_out_channels=3, time_dim=256, num_classes=None):
         super().__init__()
-        self.device = torch.device(
-            'cuda' if torch.cuda.is_available() else 'cpu')
+        self.device = DEVICE
 
         self.num_in_channels = num_in_channels
         self.num_out_channels = num_out_channels
