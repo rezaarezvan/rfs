@@ -11,11 +11,10 @@ from PIL import Image
 def get_mnist_loader(batch_size, train=True):
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
     ])
     dataset = MNIST(root='./data', train=train,
                     download=True, transform=transform)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=train)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
 def get_cifar10_loader(batch_size, train=True):
@@ -25,7 +24,7 @@ def get_cifar10_loader(batch_size, train=True):
     ])
     dataset = CIFAR10(root='./data', train=train,
                       download=True, transform=transform)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=train)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
 def get_data_from_path(args):

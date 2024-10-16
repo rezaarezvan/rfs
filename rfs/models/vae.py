@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from rfs import DEVICE
+
 
 class VAE(nn.Module):
     def __init__(self,
@@ -121,3 +123,8 @@ class VAE(nn.Module):
         z = self.reparameterize(mu, log_var)
         reconstructed = self.decode(z, labels)
         return reconstructed, mu, log_var
+
+    def sample(self, num_samples, labels=None):
+        z = torch.randn(num_samples, self.latent_dim).to(DEVICE)
+        samples = self.decode(z, labels)
+        return samples
