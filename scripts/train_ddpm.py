@@ -53,11 +53,17 @@ def train(num_epochs=10, batch_size=32):
 
             pbar.set_postfix(MSE=f"{loss.item():.4f}")
 
+        torch.save(
+            model.state_dict(),
+            f"checkpoints/epoch_{epoch}_{time.time()}.pt"
+        )
+
         if (epoch + 1) % 5 == 0:
             model.eval()
             with torch.no_grad():
                 sampled_images = diffusion.sample(model, n=16, labels=None)
-                torchvision.utils.save_image(sampled_images, f"samples/epoch_{epoch}_{time.time()}.png")
+                torchvision.utils.save_image(
+                    sampled_images, f"samples/epoch_{epoch}_{time.time()}.png")
 
 
 if __name__ == "__main__":

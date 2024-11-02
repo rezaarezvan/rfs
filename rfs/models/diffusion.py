@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
 
-from rfs import DEVICE
 from tqdm import tqdm
+from rfs import DEVICE
+from rfs.utils.dit_utils import extract_patches, reconstruct_image
 
 
 class Diffusion:
@@ -22,7 +23,8 @@ class Diffusion:
 
     def noise_images(self, x, t):
         sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t])[:, None, None, None]
-        sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t])[:, None, None, None]
+        sqrt_one_minus_alpha_hat = torch.sqrt(
+            1 - self.alpha_hat[t])[:, None, None, None]
         noise = torch.randn_like(x)
         return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * noise, noise
 
@@ -33,7 +35,8 @@ class Diffusion:
         model.eval()
         with torch.no_grad():
             channels = model.inc.double_conv[0].in_channels
-            x = torch.randn((n, channels, self.img_size, self.img_size)).to(self.device)
+            x = torch.randn((n, channels, self.img_size,
+                            self.img_size)).to(self.device)
 
             for i in tqdm(reversed(range(1, self.num_noise_steps)), position=0):
                 t = (torch.ones(n) * i).long().to(self.device)
@@ -41,7 +44,8 @@ class Diffusion:
                 predicted_noise = model(x, t)
                 if labels is not None and cfg_scale > 0:
                     unconditional = model(x, t, None)
-                    predicted_noise = torch.lerp(unconditional, predicted_noise, cfg_scale)
+                    predicted_noise = torch.lerp(
+                        unconditional, predicted_noise, cfg_scale)
 
                 alpha = self.alpha[t][:, None, None, None]
                 alpha_hat = self.alpha_hat[t][:, None, None, None]
@@ -49,11 +53,13 @@ class Diffusion:
 
                 noise = torch.randn_like(x) if i > 1 else torch.zeros_like(x)
 
-                x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise) + torch.sqrt(beta) * noise
+                x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat)))
+                                             * predicted_noise) + torch.sqrt(beta) * noise
 
             x = (x.clamp(-1, 1) + 1) / 2
 
             return x
+
 
 class EMA:
     def __init__(self, beta=0.99):
@@ -115,14 +121,16 @@ class Down(nn.Module):
 
     def forward(self, x, t_emb):
         x = self.maxpool_conv(x)
-        emb = self.emb_layer(t_emb)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
+        emb = self.emb_layer(t_emb)[:, :, None, None].repeat(
+            1, 1, x.shape[-2], x.shape[-1])
         return x + emb
 
 
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels, emb_dim=256):
         super().__init__()
-        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
+        self.up = nn.Upsample(
+            scale_factor=2, mode="bilinear", align_corners=True)
         self.conv = nn.Sequential(
             DoubleConv(in_channels, in_channels, residual=True),
             DoubleConv(in_channels, out_channels),
@@ -138,7 +146,8 @@ class Up(nn.Module):
             x = torch.nn.functional.interpolate(x, size=skip_x.shape[2:])
         x = torch.cat([skip_x, x], dim=1)
         x = self.conv(x)
-        emb = self.emb_layer(t_emb)[:, :, None, None].repeat(1, 1, x.shape[-2], x.shape[-1])
+        emb = self.emb_layer(t_emb)[:, :, None, None].repeat(
+            1, 1, x.shape[-2], x.shape[-1])
         return x + emb
 
 
@@ -198,7 +207,8 @@ class UNet(nn.Module):
         self.outc = nn.Conv2d(64, num_out_channels, kernel_size=1)
 
     def pos_encoding(self, t, channels):
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, channels, 2, device=self.device).float() / channels))
+        inv_freq = 1.0 / (10000 ** (torch.arange(0, channels,
+                          2, device=self.device).float() / channels))
         pos_enc_a = torch.sin(t.repeat(1, channels // 2) * inv_freq)
         pos_enc_b = torch.cos(t.repeat(1, channels // 2) * inv_freq)
         return torch.cat([pos_enc_a, pos_enc_b], dim=-1)
@@ -306,3 +316,108 @@ class UNetConditional(nn.Module):
         output = self.outc(x)
 
         return output
+
+
+class ConditionalNorm2d(nn.Module):
+    def __init__(self, hidden_size, num_features):
+        super(ConditionalNorm2d, self).__init__()
+        self.norm = nn.LayerNorm(hidden_size, elementwise_affine=False)
+
+        self.fcw = nn.Linear(num_features, hidden_size)
+        self.fcb = nn.Linear(num_features, hidden_size)
+
+    def forward(self, x, features):
+        bs, s, l = x.shape
+
+        out = self.norm(x)
+        w = self.fcw(features).reshape(bs, 1, -1)
+        b = self.fcb(features).reshape(bs, 1, -1)
+
+        return w * out + b
+
+
+class SinusoidalPosEmb(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.dim = dim
+
+    def forward(self, x):
+        device = x.device
+        half_dim = self.dim // 2
+        emb = torch.log(torch.tensor(10000, device=device)
+                        ).float() / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
+        emb = x[:, None] * emb[None, :]
+        emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
+        return emb
+
+
+class TransformerBlock(nn.Module):
+    def __init__(self, hidden_size=128, num_heads=4, num_features=128):
+        super(TransformerBlock, self).__init__()
+        self.norm = nn.LayerNorm(hidden_size)
+
+        self.multihead_attn = nn.MultiheadAttention(hidden_size, num_heads=num_heads,
+                                                    batch_first=True, dropout=0.0)
+
+        self.con_norm = ConditionalNorm2d(hidden_size, num_features)
+
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size * 4),
+            nn.LayerNorm(hidden_size * 4),
+            nn.ELU(),
+            nn.Linear(hidden_size * 4, hidden_size)
+        )
+
+    def forward(self, x, features):
+        norm_x = self.norm(x)
+        x = self.multihead_attn(norm_x, norm_x, norm_x)[0] + x
+        norm_x = self.con_norm(x, features)
+        x = self.mlp(norm_x) + x
+
+        return x
+
+
+class DiT(nn.Module):
+    def __init__(self, image_size, channels_in, patch_size=16,
+                 hidden_size=128, num_features=128,
+                 num_layers=3, num_heads=4):
+        super(DiT, self).__init__()
+
+        self.time_mlp = nn.Sequential(
+            SinusoidalPosEmb(num_features),
+            nn.Linear(num_features, 2 * num_features),
+            nn.GELU(),
+            nn.Linear(2 * num_features, num_features),
+            nn.GELU()
+        )
+
+        self.patch_size = patch_size
+        self.fc_in = nn.Linear(
+            channels_in * patch_size * patch_size, hidden_size)
+
+        seq_length = (image_size // patch_size) ** 2
+        self.pos_embedding = nn.Parameter(torch.empty(
+            1, seq_length, hidden_size).normal_(std=0.02))
+
+        self.blocks = nn.ModuleList([
+            TransformerBlock(hidden_size, num_heads) for _ in range(num_layers)
+        ])
+
+        self.fc_out = nn.Linear(
+            hidden_size, channels_in * patch_size * patch_size)
+
+    def forward(self, image_in, index):
+        index_features = self.time_mlp(index)
+
+        patch_seq = extract_patches(image_in, patch_size=self.patch_size)
+        patch_emb = self.fc_in(patch_seq)
+
+        embs = patch_emb + self.pos_embedding
+
+        for block in self.blocks:
+            embs = block(embs, index_features)
+
+        image_out = self.fc_out(embs)
+
+        return reconstruct_image(image_out, image_in.shape, patch_size=self.patch_size)

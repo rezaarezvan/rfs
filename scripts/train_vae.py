@@ -57,7 +57,7 @@ save_latents(model, train_loader, 'result/latents.pth')
 '''
 For visualization:
 
-model.load_state_dict(torch.load('result/vae_5_1729094804.pth'))
+model.load_state_dict(torch.load('result/vae.pth'))
 conditional = False
 
 test_loader = get_mnist_loader(32, train=False)
