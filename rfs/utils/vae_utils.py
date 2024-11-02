@@ -49,7 +49,6 @@ def visualize_samples(model, num_samples=8, labels=None):
             axes[i].axis("off")
             if labels is not None:
                 axes[i].set_title(f"Label: {labels[i].item()}")
-        plt.show()
 
 
 def visualize_latent_space(model, data_loader):
@@ -76,7 +75,6 @@ def visualize_latent_space(model, data_loader):
         x=mu_2d[:, 0], y=mu_2d[:, 1], hue=all_labels, palette="tab10", legend="full"
     )
     plt.title("Latent Space Visualization")
-    plt.show()
 
 
 @torch.no_grad()
