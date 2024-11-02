@@ -332,24 +332,6 @@ class UNetConditional(nn.Module):
         return output
 
 
-class ConditionalNorm2d(nn.Module):
-    def __init__(self, hidden_size, num_features):
-        super(ConditionalNorm2d, self).__init__()
-        self.norm = nn.LayerNorm(hidden_size, elementwise_affine=False)
-
-        self.fcw = nn.Linear(num_features, hidden_size)
-        self.fcb = nn.Linear(num_features, hidden_size)
-
-    def forward(self, x, features):
-        bs, s, l = x.shape
-
-        out = self.norm(x)
-        w = self.fcw(features).reshape(bs, 1, -1)
-        b = self.fcb(features).reshape(bs, 1, -1)
-
-        return w * out + b
-
-
 class SinusoidalPosEmb(nn.Module):
     def __init__(self, dim):
         super().__init__()
@@ -365,79 +347,155 @@ class SinusoidalPosEmb(nn.Module):
         return emb
 
 
-class TransformerBlock(nn.Module):
-    def __init__(self, hidden_size=128, num_heads=4, num_features=128):
-        super(TransformerBlock, self).__init__()
-        self.norm = nn.LayerNorm(hidden_size)
-
-        self.multihead_attn = nn.MultiheadAttention(
-            hidden_size, num_heads=num_heads, batch_first=True, dropout=0.0
-        )
-
-        self.con_norm = ConditionalNorm2d(hidden_size, num_features)
-
-        self.mlp = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size * 4),
-            nn.LayerNorm(hidden_size * 4),
-            nn.ELU(),
-            nn.Linear(hidden_size * 4, hidden_size),
-        )
-
-    def forward(self, x, features):
-        norm_x = self.norm(x)
-        x = self.multihead_attn(norm_x, norm_x, norm_x)[0] + x
-        norm_x = self.con_norm(x, features)
-        x = self.mlp(norm_x) + x
-
-        return x
-
-
 class DiT(nn.Module):
+    """
+    DiT-B/2 architecture from the paper "Scalable Diffusion Models with Transformers"
+    https://arxiv.org/abs/2212.09748
+    """
+
     def __init__(
         self,
         image_size,
         channels_in,
-        patch_size=16,
-        hidden_size=128,
-        num_features=128,
-        num_layers=3,
-        num_heads=4,
+        patch_size=2,
+        hidden_size=768,
+        num_heads=12,
+        num_layers=12,
+        mlp_ratio=4.0,
+        num_classes=None,
     ):
-        super(DiT, self).__init__()
-
-        self.time_mlp = nn.Sequential(
-            SinusoidalPosEmb(num_features),
-            nn.Linear(num_features, 2 * num_features),
-            nn.GELU(),
-            nn.Linear(2 * num_features, num_features),
-            nn.GELU(),
-        )
-
+        super().__init__()
+        self.image_size = image_size
+        self.channels_in = channels_in
         self.patch_size = patch_size
-        self.fc_in = nn.Linear(channels_in * patch_size * patch_size, hidden_size)
+        self.num_classes = num_classes
 
-        seq_length = (image_size // patch_size) ** 2
-        self.pos_embedding = nn.Parameter(
-            torch.empty(1, seq_length, hidden_size).normal_(std=0.02)
+        self.x_embedder = nn.Sequential(
+            nn.Linear(channels_in * patch_size * patch_size, hidden_size),
+            nn.GELU(),
         )
+
+        self.time_embedder = nn.Sequential(
+            SinusoidalPosEmb(hidden_size),
+            nn.Linear(hidden_size, 4 * hidden_size),
+            nn.GELU(),
+            nn.Linear(4 * hidden_size, hidden_size),
+        )
+
+        if num_classes is not None:
+            self.class_embedder = nn.Embedding(num_classes, hidden_size)
+
+        self.num_patches = (image_size // patch_size) ** 2
+        self.pos_embed = nn.Parameter(torch.zeros(1, self.num_patches, hidden_size))
 
         self.blocks = nn.ModuleList(
-            [TransformerBlock(hidden_size, num_heads) for _ in range(num_layers)]
+            [
+                DiTBlock(
+                    hidden_size=hidden_size, num_heads=num_heads, mlp_ratio=mlp_ratio
+                )
+                for _ in range(num_layers)
+            ]
         )
 
-        self.fc_out = nn.Linear(hidden_size, channels_in * patch_size * patch_size)
+        self.norm_final = nn.LayerNorm(hidden_size)
+        self.output_projection = nn.Linear(
+            hidden_size, channels_in * patch_size * patch_size
+        )
 
-    def forward(self, image_in, index):
-        index_features = self.time_mlp(index)
+        self.initialize_weights()
 
-        patch_seq = extract_patches(image_in, patch_size=self.patch_size)
-        patch_emb = self.fc_in(patch_seq)
+    def initialize_weights(self):
+        nn.init.normal_(self.x_embedder[0].weight, std=0.02)
+        nn.init.zeros_(self.x_embedder[0].bias)
 
-        embs = patch_emb + self.pos_embedding
+        nn.init.normal_(self.pos_embed, std=0.02)
+
+        nn.init.normal_(self.output_projection.weight, std=0.02)
+        nn.init.zeros_(self.output_projection.bias)
+
+    def unpatchify(self, x):
+        """Convert patched feature back to image."""
+        return reconstruct_image(
+            x,
+            (x.shape[0], self.channels_in, self.image_size, self.image_size),
+            self.patch_size,
+        )
+
+    def forward(self, x, t, y=None):
+        """
+        Forward pass of DiT.
+        x: (N, C, H, W) tensor of spatial inputs (images or latent representations)
+        t: (N,) tensor of diffusion timesteps
+        y: (N,) tensor of class labels when class conditioning is used
+        """
+        x = extract_patches(x, self.patch_size)
+        x = self.x_embedder(x)
+
+        x = x + self.pos_embed
+
+        t = self.time_embedder(t)
+
+        if y is not None and self.num_classes is not None:
+            t = t + self.class_embedder(y)
 
         for block in self.blocks:
-            embs = block(embs, index_features)
+            x = block(x, t)
 
-        image_out = self.fc_out(embs)
+        x = self.norm_final(x)
+        x = self.output_projection(x)
 
-        return reconstruct_image(image_out, image_in.shape, patch_size=self.patch_size)
+        return self.unpatchify(x)
+
+
+class DiTBlock(nn.Module):
+    """
+    DiT Block from the paper, implementing the adaptive Layer Norm (adaLN) mechanism
+    """
+
+    def __init__(self, hidden_size, num_heads, mlp_ratio=4.0):
+        super().__init__()
+        self.norm1 = nn.LayerNorm(hidden_size, elementwise_affine=False)
+        self.attn = nn.MultiheadAttention(hidden_size, num_heads, batch_first=True)
+
+        self.norm2 = nn.LayerNorm(hidden_size, elementwise_affine=False)
+        mlp_hidden = int(hidden_size * mlp_ratio)
+        self.mlp = nn.Sequential(
+            nn.Linear(hidden_size, mlp_hidden),
+            nn.GELU(),
+            nn.Linear(mlp_hidden, hidden_size),
+        )
+
+        self.adaLN_modulation = nn.Sequential(
+            nn.SiLU(), nn.Linear(hidden_size, 6 * hidden_size, bias=True)
+        )
+
+        self.initialize_weights()
+
+    def initialize_weights(self):
+        nn.init.normal_(self.attn.in_proj_weight, std=0.02)
+        nn.init.normal_(self.attn.out_proj.weight, std=0.02)
+        nn.init.zeros_(self.attn.in_proj_bias)
+        nn.init.zeros_(self.attn.out_proj.bias)
+
+        nn.init.normal_(self.mlp[0].weight, std=0.02)
+        nn.init.normal_(self.mlp[2].weight, std=0.02)
+        nn.init.zeros_(self.mlp[0].bias)
+        nn.init.zeros_(self.mlp[2].bias)
+
+        nn.init.zeros_(self.adaLN_modulation[1].weight)
+        nn.init.zeros_(self.adaLN_modulation[1].bias)
+
+    def forward(self, x, t):
+        shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = (
+            self.adaLN_modulation(t).chunk(6, dim=1)
+        )
+
+        norm_x = self.norm1(x)
+        norm_x = norm_x * (1 + scale_msa.unsqueeze(1)) + shift_msa.unsqueeze(1)
+        x = x + gate_msa.unsqueeze(1) * self.attn(norm_x, norm_x, norm_x)[0]
+
+        norm_x = self.norm2(x)
+        norm_x = norm_x * (1 + scale_mlp.unsqueeze(1)) + shift_mlp.unsqueeze(1)
+        x = x + gate_mlp.unsqueeze(1) * self.mlp(norm_x)
+
+        return x

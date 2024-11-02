@@ -31,7 +31,6 @@ def visualize_reconstructions(model, data_loader, num_images=8):
 
             axes[1, i].imshow(recon_images[i].squeeze(), cmap="gray")
             axes[1, i].axis("off")
-        plt.show()
 
 
 def visualize_samples(model, num_samples=8, labels=None):
