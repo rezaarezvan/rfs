@@ -1,3 +1,5 @@
+import os
+import time
 import torch
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -75,3 +77,20 @@ def visualize_latent_space(model, data_loader):
                     hue=all_labels, palette='tab10', legend='full')
     plt.title('Latent Space Visualization')
     plt.show()
+
+
+@torch.no_grad()
+def save_latents(model, data_loader, path):
+    """Save VAE latents for all images in the dataset"""
+    model.eval()
+    latents = []
+    for data, labels in data_loader:
+        data, labels = data.to(DEVICE), labels.to(DEVICE)
+        mu, log_var = model.encode(
+            data, labels) if model.conditional else model.encode(data)
+        latent = model.reparameterize(mu, log_var)
+        latents.append(latent.cpu())
+
+    latents = torch.cat(latents, dim=0)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    torch.save(latents, f"{path}_{time.time()}.pt")

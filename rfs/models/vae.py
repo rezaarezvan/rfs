@@ -13,6 +13,17 @@ class VAE(nn.Module):
                  conditional=False,
                  num_classes=10
                  ):
+        """
+        VAE implementation supporting both conditional and non-conditional generation.
+
+        Args:
+            input_channels: Number of input image channels
+            latent_dim: Dimension of the latent space
+            hidden_dims: List of hidden dimensions for encoder/decoder.
+                        Default progression is [32, 64] which downsamples 28x28 -> 14x14 -> 7x7
+            conditional: Whether to use conditional generation
+            num_classes: Number of classes for conditional generation
+        """
         super(VAE, self).__init__()
 
         self.input_channels = input_channels
