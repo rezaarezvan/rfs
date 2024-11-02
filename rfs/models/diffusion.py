@@ -7,7 +7,9 @@ from rfs.utils.dit_utils import extract_patches, reconstruct_image
 
 
 class Diffusion:
-    def __init__(self, num_noise_steps=1000, beta_start=1e-4, beta_end=0.02, img_size=64):
+    def __init__(
+        self, num_noise_steps=1000, beta_start=1e-4, beta_end=0.02, img_size=64
+    ):
         self.num_noise_steps = num_noise_steps
         self.beta_start = beta_start
         self.beta_end = beta_end
@@ -23,8 +25,9 @@ class Diffusion:
 
     def noise_images(self, x, t):
         sqrt_alpha_hat = torch.sqrt(self.alpha_hat[t])[:, None, None, None]
-        sqrt_one_minus_alpha_hat = torch.sqrt(
-            1 - self.alpha_hat[t])[:, None, None, None]
+        sqrt_one_minus_alpha_hat = torch.sqrt(1 - self.alpha_hat[t])[
+            :, None, None, None
+        ]
         noise = torch.randn_like(x)
         return sqrt_alpha_hat * x + sqrt_one_minus_alpha_hat * noise, noise
 
@@ -35,8 +38,7 @@ class Diffusion:
         model.eval()
         with torch.no_grad():
             channels = model.inc.double_conv[0].in_channels
-            x = torch.randn((n, channels, self.img_size,
-                            self.img_size)).to(self.device)
+            x = torch.randn((n, channels, self.img_size, self.img_size)).to(self.device)
 
             for i in tqdm(reversed(range(1, self.num_noise_steps)), position=0):
                 t = (torch.ones(n) * i).long().to(self.device)
@@ -45,7 +47,8 @@ class Diffusion:
                 if labels is not None and cfg_scale > 0:
                     unconditional = model(x, t, None)
                     predicted_noise = torch.lerp(
-                        unconditional, predicted_noise, cfg_scale)
+                        unconditional, predicted_noise, cfg_scale
+                    )
 
                 alpha = self.alpha[t][:, None, None, None]
                 alpha_hat = self.alpha_hat[t][:, None, None, None]
@@ -53,8 +56,15 @@ class Diffusion:
 
                 noise = torch.randn_like(x) if i > 1 else torch.zeros_like(x)
 
-                x = 1 / torch.sqrt(alpha) * (x - ((1 - alpha) / (torch.sqrt(1 - alpha_hat)))
-                                             * predicted_noise) + torch.sqrt(beta) * noise
+                x = (
+                    1
+                    / torch.sqrt(alpha)
+                    * (
+                        x
+                        - ((1 - alpha) / (torch.sqrt(1 - alpha_hat))) * predicted_noise
+                    )
+                    + torch.sqrt(beta) * noise
+                )
 
             x = (x.clamp(-1, 1) + 1) / 2
 
@@ -73,8 +83,7 @@ class EMA:
             return
 
         for ema_param, param in zip(ema_model.parameters(), model.parameters()):
-            ema_param.data = self.beta * ema_param.data + \
-                (1 - self.beta) * param.data
+            ema_param.data = self.beta * ema_param.data + (1 - self.beta) * param.data
 
         self.step += 1
 
@@ -89,12 +98,10 @@ class DoubleConv(nn.Module):
         if not mid_channels:
             mid_channels = out_channels
         self.double_conv = nn.Sequential(
-            nn.Conv2d(in_channels, mid_channels,
-                      kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(in_channels, mid_channels, kernel_size=3, padding=1, bias=False),
             nn.GroupNorm(1, mid_channels),
             nn.GELU(),
-            nn.Conv2d(mid_channels, out_channels,
-                      kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(mid_channels, out_channels, kernel_size=3, padding=1, bias=False),
             nn.GroupNorm(1, out_channels),
         )
 
@@ -122,15 +129,15 @@ class Down(nn.Module):
     def forward(self, x, t_emb):
         x = self.maxpool_conv(x)
         emb = self.emb_layer(t_emb)[:, :, None, None].repeat(
-            1, 1, x.shape[-2], x.shape[-1])
+            1, 1, x.shape[-2], x.shape[-1]
+        )
         return x + emb
 
 
 class Up(nn.Module):
     def __init__(self, in_channels, out_channels, emb_dim=256):
         super().__init__()
-        self.up = nn.Upsample(
-            scale_factor=2, mode="bilinear", align_corners=True)
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
         self.conv = nn.Sequential(
             DoubleConv(in_channels, in_channels, residual=True),
             DoubleConv(in_channels, out_channels),
@@ -147,7 +154,8 @@ class Up(nn.Module):
         x = torch.cat([skip_x, x], dim=1)
         x = self.conv(x)
         emb = self.emb_layer(t_emb)[:, :, None, None].repeat(
-            1, 1, x.shape[-2], x.shape[-1])
+            1, 1, x.shape[-2], x.shape[-1]
+        )
         return x + emb
 
 
@@ -207,8 +215,10 @@ class UNet(nn.Module):
         self.outc = nn.Conv2d(64, num_out_channels, kernel_size=1)
 
     def pos_encoding(self, t, channels):
-        inv_freq = 1.0 / (10000 ** (torch.arange(0, channels,
-                          2, device=self.device).float() / channels))
+        inv_freq = 1.0 / (
+            10000
+            ** (torch.arange(0, channels, 2, device=self.device).float() / channels)
+        )
         pos_enc_a = torch.sin(t.repeat(1, channels // 2) * inv_freq)
         pos_enc_b = torch.cos(t.repeat(1, channels // 2) * inv_freq)
         return torch.cat([pos_enc_a, pos_enc_b], dim=-1)
@@ -243,7 +253,9 @@ class UNet(nn.Module):
 
 
 class UNetConditional(nn.Module):
-    def __init__(self, num_in_channels=3, num_out_channels=3, time_dim=256, num_classes=None):
+    def __init__(
+        self, num_in_channels=3, num_out_channels=3, time_dim=256, num_classes=None
+    ):
         super().__init__()
         self.device = DEVICE
 
@@ -278,8 +290,10 @@ class UNetConditional(nn.Module):
             self.label_emb = nn.Embedding(self.num_classes, self.time_dim)
 
     def pos_encoding(self, t, channels):
-        inv_freq = 1.0 / \
-            (10_000 ** (torch.arange(0, channels, 2, device=self.device).float() / channels))
+        inv_freq = 1.0 / (
+            10_000
+            ** (torch.arange(0, channels, 2, device=self.device).float() / channels)
+        )
 
         pos_enc_a = torch.sin(t.repeat(1, channels // 2) * inv_freq)
         pos_enc_b = torch.cos(t.repeat(1, channels // 2) * inv_freq)
@@ -344,8 +358,7 @@ class SinusoidalPosEmb(nn.Module):
     def forward(self, x):
         device = x.device
         half_dim = self.dim // 2
-        emb = torch.log(torch.tensor(10000, device=device)
-                        ).float() / (half_dim - 1)
+        emb = torch.log(torch.tensor(10000, device=device)).float() / (half_dim - 1)
         emb = torch.exp(torch.arange(half_dim, device=device) * -emb)
         emb = x[:, None] * emb[None, :]
         emb = torch.cat((emb.sin(), emb.cos()), dim=-1)
@@ -357,8 +370,9 @@ class TransformerBlock(nn.Module):
         super(TransformerBlock, self).__init__()
         self.norm = nn.LayerNorm(hidden_size)
 
-        self.multihead_attn = nn.MultiheadAttention(hidden_size, num_heads=num_heads,
-                                                    batch_first=True, dropout=0.0)
+        self.multihead_attn = nn.MultiheadAttention(
+            hidden_size, num_heads=num_heads, batch_first=True, dropout=0.0
+        )
 
         self.con_norm = ConditionalNorm2d(hidden_size, num_features)
 
@@ -366,7 +380,7 @@ class TransformerBlock(nn.Module):
             nn.Linear(hidden_size, hidden_size * 4),
             nn.LayerNorm(hidden_size * 4),
             nn.ELU(),
-            nn.Linear(hidden_size * 4, hidden_size)
+            nn.Linear(hidden_size * 4, hidden_size),
         )
 
     def forward(self, x, features):
@@ -379,9 +393,16 @@ class TransformerBlock(nn.Module):
 
 
 class DiT(nn.Module):
-    def __init__(self, image_size, channels_in, patch_size=16,
-                 hidden_size=128, num_features=128,
-                 num_layers=3, num_heads=4):
+    def __init__(
+        self,
+        image_size,
+        channels_in,
+        patch_size=16,
+        hidden_size=128,
+        num_features=128,
+        num_layers=3,
+        num_heads=4,
+    ):
         super(DiT, self).__init__()
 
         self.time_mlp = nn.Sequential(
@@ -389,23 +410,22 @@ class DiT(nn.Module):
             nn.Linear(num_features, 2 * num_features),
             nn.GELU(),
             nn.Linear(2 * num_features, num_features),
-            nn.GELU()
+            nn.GELU(),
         )
 
         self.patch_size = patch_size
-        self.fc_in = nn.Linear(
-            channels_in * patch_size * patch_size, hidden_size)
+        self.fc_in = nn.Linear(channels_in * patch_size * patch_size, hidden_size)
 
         seq_length = (image_size // patch_size) ** 2
-        self.pos_embedding = nn.Parameter(torch.empty(
-            1, seq_length, hidden_size).normal_(std=0.02))
+        self.pos_embedding = nn.Parameter(
+            torch.empty(1, seq_length, hidden_size).normal_(std=0.02)
+        )
 
-        self.blocks = nn.ModuleList([
-            TransformerBlock(hidden_size, num_heads) for _ in range(num_layers)
-        ])
+        self.blocks = nn.ModuleList(
+            [TransformerBlock(hidden_size, num_heads) for _ in range(num_layers)]
+        )
 
-        self.fc_out = nn.Linear(
-            hidden_size, channels_in * patch_size * patch_size)
+        self.fc_out = nn.Linear(hidden_size, channels_in * patch_size * patch_size)
 
     def forward(self, image_in, index):
         index_features = self.time_mlp(index)

@@ -12,8 +12,7 @@ def extract_patches(image_tensor, patch_size=8):
 
     unfolded = unfold(image_tensor)
 
-    unfolded = unfolded.transpose(1, 2).reshape(
-        bs, -1, c * patch_size * patch_size)
+    unfolded = unfolded.transpose(1, 2).reshape(bs, -1, c * patch_size * patch_size)
 
     return unfolded
 
@@ -35,8 +34,7 @@ def reconstruct_image(patch_sequence, image_shape, patch_size=8):
     num_patches_h = h // patch_size
     num_patches_w = w // patch_size
 
-    unfolded_shape = (bs, num_patches_h, num_patches_w,
-                      patch_size, patch_size, c)
+    unfolded_shape = (bs, num_patches_h, num_patches_w, patch_size, patch_size, c)
     patch_sequence = patch_sequence.view(*unfolded_shape)
 
     patch_sequence = patch_sequence.permute(0, 5, 1, 3, 2, 4).contiguous()
@@ -55,7 +53,7 @@ def cosine_alphas_bar(timesteps, s=0.008):
 
 
 def noise_from_x0(curr_img, img_pred, alpha):
-    return (curr_img - alpha.sqrt() * img_pred)/((1 - alpha).sqrt() + 1e-4)
+    return (curr_img - alpha.sqrt() * img_pred) / ((1 - alpha).sqrt() + 1e-4)
 
 
 def cold_diffuse(diffusion_model, sample_in, total_steps, start_step=0):
@@ -73,13 +71,11 @@ def cold_diffuse(diffusion_model, sample_in, total_steps, start_step=0):
             x0 = img_output
 
             rep1 = alphas[i].sqrt() * x0 + (1 - alphas[i]).sqrt() * noise
-            rep2 = alphas[i + 1].sqrt() * x0 + \
-                (1 - alphas[i + 1]).sqrt() * noise
+            rep2 = alphas[i + 1].sqrt() * x0 + (1 - alphas[i + 1]).sqrt() * noise
 
             random_sample += rep2 - rep1
 
-        index = ((total_steps - 1) * torch.ones(bs,
-                 device=sample_in.device)).long()
+        index = ((total_steps - 1) * torch.ones(bs, device=sample_in.device)).long()
         img_output = diffusion_model(random_sample, index)
 
     return img_output

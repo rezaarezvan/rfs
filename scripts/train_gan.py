@@ -27,7 +27,7 @@ def main():
     train_loader = get_mnist_loader(batch_size=batch_size, train=True)
     fixed_noise = torch.randn(64, latent_dim).to(device)
 
-    os.makedirs('imgs', exist_ok=True)
+    os.makedirs("imgs", exist_ok=True)
 
     for epoch in range(epochs):
         for real, _ in train_loader:
@@ -56,12 +56,14 @@ def main():
             lossG.backward()
             opt_g.step()
 
-        print(f"Epoch [{epoch+1}/{epochs}] Loss D: {lossD.item():.4f}, Loss G: {lossG.item():.4f}")
+        print(
+            f"Epoch [{epoch+1}/{epochs}] Loss D: {lossD.item():.4f}, Loss G: {lossG.item():.4f}"
+        )
 
         with torch.no_grad():
             fake = generator(fixed_noise).reshape(-1, 1, 28, 28)
-            save_image(fake, os.path.join('imgs', f"{epoch+1}.png"))
+            save_image(fake, os.path.join("imgs", f"{epoch+1}.png"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -6,13 +6,14 @@ from rfs import DEVICE
 
 
 class VAE(nn.Module):
-    def __init__(self,
-                 input_channels=1,
-                 latent_dim=4,
-                 hidden_dims=None,
-                 conditional=False,
-                 num_classes=10
-                 ):
+    def __init__(
+        self,
+        input_channels=1,
+        latent_dim=4,
+        hidden_dims=None,
+        conditional=False,
+        num_classes=10,
+    ):
         """
         VAE implementation supporting both conditional and non-conditional generation.
 
@@ -47,10 +48,10 @@ class VAE(nn.Module):
         for h_dim in hidden_dims:
             modules.append(
                 nn.Sequential(
-                    nn.Conv2d(in_channels, h_dim, kernel_size=3,
-                              stride=2, padding=1),
+                    nn.Conv2d(in_channels, h_dim, kernel_size=3, stride=2, padding=1),
                     nn.BatchNorm2d(h_dim),
-                    nn.LeakyReLU())
+                    nn.LeakyReLU(),
+                )
             )
             in_channels = h_dim
 
@@ -74,8 +75,9 @@ class VAE(nn.Module):
         modules = []
         in_channels = hidden_dims[0]
 
-        input_dim = self.latent_dim + \
-            self.num_classes if self.conditional else self.latent_dim
+        input_dim = (
+            self.latent_dim + self.num_classes if self.conditional else self.latent_dim
+        )
 
         self.decoder_input = nn.Linear(input_dim, self.flatten_dim)
 
@@ -83,19 +85,32 @@ class VAE(nn.Module):
             out_channels = hidden_dims[i + 1]
             modules.append(
                 nn.Sequential(
-                    nn.ConvTranspose2d(in_channels, out_channels,
-                                       kernel_size=3, stride=2, padding=1, output_padding=1),
+                    nn.ConvTranspose2d(
+                        in_channels,
+                        out_channels,
+                        kernel_size=3,
+                        stride=2,
+                        padding=1,
+                        output_padding=1,
+                    ),
                     nn.BatchNorm2d(out_channels),
-                    nn.LeakyReLU())
+                    nn.LeakyReLU(),
+                )
             )
             in_channels = out_channels
 
         decoder = nn.Sequential(*modules)
 
         self.final_layer = nn.Sequential(
-            nn.ConvTranspose2d(in_channels, input_channels,
-                               kernel_size=3, stride=2, padding=1, output_padding=1),
-            nn.Sigmoid()
+            nn.ConvTranspose2d(
+                in_channels,
+                input_channels,
+                kernel_size=3,
+                stride=2,
+                padding=1,
+                output_padding=1,
+            ),
+            nn.Sigmoid(),
         )
 
         return decoder

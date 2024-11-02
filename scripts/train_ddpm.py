@@ -13,13 +13,11 @@ from rfs.models.diffusion import Diffusion, UNet
 
 
 def get_mnist_loader(batch_size, train=True):
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda t: (t * 2) - 1)
-    ])
+    transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Lambda(lambda t: (t * 2) - 1)]
+    )
 
-    dataset = MNIST(root='./data', train=train,
-                    download=True, transform=transform)
+    dataset = MNIST(root="./data", train=train, download=True, transform=transform)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
@@ -53,17 +51,15 @@ def train(num_epochs=10, batch_size=32):
 
             pbar.set_postfix(MSE=f"{loss.item():.4f}")
 
-        torch.save(
-            model.state_dict(),
-            f"checkpoints/epoch_{epoch}_{time.time()}.pt"
-        )
+        torch.save(model.state_dict(), f"checkpoints/epoch_{epoch}_{time.time()}.pt")
 
         if (epoch + 1) % 5 == 0:
             model.eval()
             with torch.no_grad():
                 sampled_images = diffusion.sample(model, n=16, labels=None)
                 torchvision.utils.save_image(
-                    sampled_images, f"samples/epoch_{epoch}_{time.time()}.png")
+                    sampled_images, f"samples/epoch_{epoch}_{time.time()}.png"
+                )
 
 
 if __name__ == "__main__":

@@ -10,20 +10,20 @@ NUM_EPOCHS = 300
 
 
 def plot_labels(inputs: np.ndarray, labels: np.ndarray):
-    plt.scatter(inputs[labels == 0, 0],
-                inputs[labels == 0, 1], label="class 0")
+    plt.scatter(inputs[labels == 0, 0], inputs[labels == 0, 1], label="class 0")
 
-    plt.scatter(inputs[labels == 1, 0],
-                inputs[labels == 1, 1], label="class 1")
+    plt.scatter(inputs[labels == 1, 0], inputs[labels == 1, 1], label="class 1")
 
     plt.legend()
     plt.show()
 
 
-def plot_predictions(inputs: np.ndarray, true_labels: np.ndarray, predicted_labels: np.ndarray):
-    plt.title('True labels')
+def plot_predictions(
+    inputs: np.ndarray, true_labels: np.ndarray, predicted_labels: np.ndarray
+):
+    plt.title("True labels")
     plot_labels(inputs, true_labels)
-    plt.title('Predicted labels')
+    plt.title("Predicted labels")
     plot_labels(inputs, predicted_labels)
 
 
@@ -46,21 +46,23 @@ def _softmax_derivative(inputs: np.ndarray) -> np.ndarray:
 
 
 def _get_activation(function_name: str) -> Callable[[np.ndarray], np.ndarray]:
-    if function_name == 'relu':
+    if function_name == "relu":
         return _relu
-    elif function_name == 'softmax':
+    elif function_name == "softmax":
         return _softmax
     else:
-        raise ValueError(f'Unknown function_name: {function_name=}.')
+        raise ValueError(f"Unknown function_name: {function_name=}.")
 
 
-def _get_activation_derivative(function_name: str) -> Callable[[np.ndarray], np.ndarray]:
-    if function_name == 'relu':
+def _get_activation_derivative(
+    function_name: str,
+) -> Callable[[np.ndarray], np.ndarray]:
+    if function_name == "relu":
         return _relu_derivative
-    elif function_name == 'softmax':
+    elif function_name == "softmax":
         return _softmax_derivative
     else:
-        raise ValueError(f'Unknown function_name: {function_name=}.')
+        raise ValueError(f"Unknown function_name: {function_name=}.")
 
 
 def cross_entropy(prediction: np.ndarray, label: np.ndarray) -> float:
@@ -68,7 +70,7 @@ def cross_entropy(prediction: np.ndarray, label: np.ndarray) -> float:
 
 
 def cross_entropy_derivative(prediction: np.ndarray, label: int) -> float:
-    return -1. / prediction[label]
+    return -1.0 / prediction[label]
 
 
 def mean_squared_error(prediction: np.ndarray, label: int) -> float:
@@ -95,9 +97,9 @@ def _glorot_scale(in_dims: int, out_dims: int) -> float:
 
 
 def _initialize_weights(in_dims: int, out_dims: int) -> np.ndarray:
-    return np.random.normal(loc=0.,
-                            scale=_glorot_scale(in_dims, out_dims),
-                            size=(in_dims, out_dims))
+    return np.random.normal(
+        loc=0.0, scale=_glorot_scale(in_dims, out_dims), size=(in_dims, out_dims)
+    )
 
 
 def init_params(sizes: List[int]) -> List[LayerParams]:
@@ -106,18 +108,22 @@ def init_params(sizes: List[int]) -> List[LayerParams]:
         in_dims = sizes[size_index]
         out_dims = sizes[size_index + 1]
         if size_index == len(sizes) - 2:
-            activation = 'softmax'
+            activation = "softmax"
         else:
-            activation = 'relu'
-        params.append(LayerParams(weights=_initialize_weights(in_dims, out_dims),
-                                  biases=0.01 * np.ones(out_dims),
-                                  activation=activation))
+            activation = "relu"
+        params.append(
+            LayerParams(
+                weights=_initialize_weights(in_dims, out_dims),
+                biases=0.01 * np.ones(out_dims),
+                activation=activation,
+            )
+        )
     return params
 
 
 def forward_with_activations(
-        params: List[LayerParams],
-        image: np.ndarray) -> Tuple[np.ndarray, List[np.ndarray]]:
+    params: List[LayerParams], image: np.ndarray
+) -> Tuple[np.ndarray, List[np.ndarray]]:
     layer_input = image
     activations = []
     for _, layer_params in enumerate(params):
@@ -129,27 +135,25 @@ def forward_with_activations(
     return layer_output, activations
 
 
-def backward(params: List[LayerParams], image: np.ndarray,
-             label: int) -> List[LayerParams]:
+def backward(
+    params: List[LayerParams], image: np.ndarray, label: int
+) -> List[LayerParams]:
     probabilities, activations = forward_with_activations(params, image)
     accumulated_gradient = mean_squared_error_derivative(probabilities, label)
     new_params = [None for _ in params]
     for reverse_layer_index, layer_params in enumerate(reversed(params)):
-
         layer_index = len(params) - 1 - reverse_layer_index
-        activation_derivative_func = _get_activation_derivative(
-            layer_params.activation)
+        activation_derivative_func = _get_activation_derivative(layer_params.activation)
         prev_activation = activations[layer_index - 1]
-        activation_derivative = activation_derivative_func(
-            activations[layer_index])
+        activation_derivative = activation_derivative_func(activations[layer_index])
         bias_gradient = accumulated_gradient * activation_derivative
         weight_gradient = np.outer(prev_activation, bias_gradient.T)
 
         new_biases = layer_params.biases - LEARNING_RATE * bias_gradient
         new_weights = layer_params.weights - LEARNING_RATE * weight_gradient
-        new_params[layer_index] = LayerParams(weights=new_weights,
-                                              biases=new_biases,
-                                              activation=layer_params.activation)
+        new_params[layer_index] = LayerParams(
+            weights=new_weights, biases=new_biases, activation=layer_params.activation
+        )
         accumulated_gradient = np.dot(bias_gradient, layer_params.weights.T)
     return new_params
 
@@ -159,8 +163,9 @@ def calculate_loss(params: List[LayerParams], image: np.ndarray, label: int) -> 
     return cross_entropy(prediction, label)
 
 
-def accuracy(params: List[LayerParams],
-             images: np.ndarray, labels: np.ndarray) -> float:
+def accuracy(
+    params: List[LayerParams], images: np.ndarray, labels: np.ndarray
+) -> float:
     num_correct = 0
     for data_index in range(len(labels)):
         image, label = images[data_index, :], labels[data_index]
@@ -183,10 +188,15 @@ def main():
     params = init_params([2, 128, 128, 128, 128, 2])
 
     for epoch_index in range(NUM_EPOCHS):
-        loss = sum([calculate_loss(params, inputs[data_index, :], labels[data_index])
-                   for data_index in range(len(labels))])/len(labels)
+        loss = sum(
+            [
+                calculate_loss(params, inputs[data_index, :], labels[data_index])
+                for data_index in range(len(labels))
+            ]
+        ) / len(labels)
         print(
-            f'Running epoch {epoch_index}, mean loss: {loss}, accuracy: {accuracy(params, inputs, labels)}')
+            f"Running epoch {epoch_index}, mean loss: {loss}, accuracy: {accuracy(params, inputs, labels)}"
+        )
         for data_index in range(len(labels)):
             image, label = inputs[data_index, :], labels[data_index]
             params = backward(params, image, label)

@@ -10,8 +10,7 @@ from rfs.models.fastkan import FastKAN
 if __name__ == "__main__":
     X_train, Y_train, X_test, Y_test = mnist()
     model = FastKAN([28 * 28, 64, 10])
-    opt = nn.optim.AdamW(nn.state.get_parameters(model),
-                         lr=1e-3, weight_decay=1e-4)
+    opt = nn.optim.AdamW(nn.state.get_parameters(model), lr=1e-3, weight_decay=1e-4)
 
     @TinyJit
     @Tensor.train()
@@ -37,7 +36,7 @@ if __name__ == "__main__":
 
         return loss, acc
 
-    test_acc = float('0.0')
+    test_acc = float("0.0")
     for i in (t := trange(getenv("STEPS", 70))):
         GlobalCounters.reset()
         loss, test_acc = train_step()

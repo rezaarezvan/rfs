@@ -35,5 +35,5 @@ class Trainer:
                 pred = output.argmax(dim=1)
                 correct += pred.eq(target).sum().item()
         avg_loss = total_loss / len(dataloader.dataset)
-        accuracy = 100. * correct / len(dataloader.dataset)
+        accuracy = 100.0 * correct / len(dataloader.dataset)
         return avg_loss, accuracy

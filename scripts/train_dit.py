@@ -12,14 +12,15 @@ from rfs.utils.dit_utils import cosine_alphas_bar
 
 
 def get_mnist_loader(batch_size, train=True):
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda t: (t * 2) - 1),
-        transforms.Lambda(lambda t: t.float()),
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Lambda(lambda t: (t * 2) - 1),
+            transforms.Lambda(lambda t: t.float()),
+        ]
+    )
 
-    dataset = MNIST(root='./data', train=train,
-                    download=True, transform=transform)
+    dataset = MNIST(root="./data", train=train, download=True, transform=transform)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
@@ -28,11 +29,17 @@ def train(num_epochs=10, batch_size=32):
     time_steps = 1000
     patch_size = 2
 
-    model = DiT(image_size=28, channels_in=1, patch_size=patch_size, hidden_size=128,
-                num_features=128, num_layers=3, num_heads=4).to(DEVICE)
+    model = DiT(
+        image_size=28,
+        channels_in=1,
+        patch_size=patch_size,
+        hidden_size=128,
+        num_features=128,
+        num_layers=3,
+        num_heads=4,
+    ).to(DEVICE)
 
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=3e-4, weight_decay=1e-2)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-2)
 
     scaler = torch.cuda.amp.GradScaler()
 
@@ -60,8 +67,9 @@ def train(num_epochs=10, batch_size=32):
             random_sample = torch.randn_like(latents)
             alpha_batch = alphas[rand_index].reshape(bs, 1, 1, 1)
 
-            noise_input = alpha_batch.sqrt() * latents +\
-                (1 - alpha_batch).sqrt() * random_sample
+            noise_input = (
+                alpha_batch.sqrt() * latents + (1 - alpha_batch).sqrt() * random_sample
+            )
 
             with torch.cuda.amp.autocast():
                 latent_pred = model(noise_input, rand_index)
@@ -75,11 +83,15 @@ def train(num_epochs=10, batch_size=32):
             loss_log.append(loss.item())
             mean_loss += loss.item()
 
-        torch.save({'epoch': epoch + 1,
-                    'train_data_logger': loss_log,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    }, "latent_dit.pt")
+        torch.save(
+            {
+                "epoch": epoch + 1,
+                "train_data_logger": loss_log,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+            },
+            "latent_dit.pt",
+        )
 
 
 if __name__ == "__main__":

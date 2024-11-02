@@ -26,11 +26,11 @@ def visualize_reconstructions(model, data_loader, num_images=8):
 
         fig, axes = plt.subplots(2, num_images, figsize=(num_images * 2, 4))
         for i in range(num_images):
-            axes[0, i].imshow(images[i].squeeze(), cmap='gray')
-            axes[0, i].axis('off')
+            axes[0, i].imshow(images[i].squeeze(), cmap="gray")
+            axes[0, i].axis("off")
 
-            axes[1, i].imshow(recon_images[i].squeeze(), cmap='gray')
-            axes[1, i].axis('off')
+            axes[1, i].imshow(recon_images[i].squeeze(), cmap="gray")
+            axes[1, i].axis("off")
         plt.show()
 
 
@@ -40,17 +40,16 @@ def visualize_samples(model, num_samples=8, labels=None):
         if labels is not None:
             labels = torch.tensor(labels).to(DEVICE)
         else:
-            labels = torch.randint(0, model.num_classes,
-                                   (num_samples,)).to(DEVICE)
+            labels = torch.randint(0, model.num_classes, (num_samples,)).to(DEVICE)
         samples = model.sample(num_samples, labels)
         samples = samples.cpu().numpy()
 
         fig, axes = plt.subplots(1, num_samples, figsize=(num_samples * 2, 2))
         for i in range(num_samples):
-            axes[i].imshow(samples[i].squeeze(), cmap='gray')
-            axes[i].axis('off')
+            axes[i].imshow(samples[i].squeeze(), cmap="gray")
+            axes[i].axis("off")
             if labels is not None:
-                axes[i].set_title(f'Label: {labels[i].item()}')
+                axes[i].set_title(f"Label: {labels[i].item()}")
         plt.show()
 
 
@@ -62,8 +61,9 @@ def visualize_latent_space(model, data_loader):
         for data, labels in data_loader:
             data = data.to(DEVICE)
             labels = labels.to(DEVICE)
-            mu, _ = model.encode(
-                data, labels) if model.conditional else model.encode(data)
+            mu, _ = (
+                model.encode(data, labels) if model.conditional else model.encode(data)
+            )
             all_mu.append(mu.cpu())
             all_labels.append(labels.cpu())
     all_mu = torch.cat(all_mu).numpy()
@@ -73,9 +73,10 @@ def visualize_latent_space(model, data_loader):
     mu_2d = tsne.fit_transform(all_mu)
 
     plt.figure(figsize=(8, 6))
-    sns.scatterplot(x=mu_2d[:, 0], y=mu_2d[:, 1],
-                    hue=all_labels, palette='tab10', legend='full')
-    plt.title('Latent Space Visualization')
+    sns.scatterplot(
+        x=mu_2d[:, 0], y=mu_2d[:, 1], hue=all_labels, palette="tab10", legend="full"
+    )
+    plt.title("Latent Space Visualization")
     plt.show()
 
 
@@ -86,8 +87,9 @@ def save_latents(model, data_loader, path):
     latents = []
     for data, labels in data_loader:
         data, labels = data.to(DEVICE), labels.to(DEVICE)
-        mu, log_var = model.encode(
-            data, labels) if model.conditional else model.encode(data)
+        mu, log_var = (
+            model.encode(data, labels) if model.conditional else model.encode(data)
+        )
         latent = model.reparameterize(mu, log_var)
         latents.append(latent.cpu())
 
