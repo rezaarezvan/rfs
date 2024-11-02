@@ -1,74 +1,64 @@
+import time
 import torch
-import argparse
-import logging
+import torchvision
 import torch.nn as nn
+import torchvision.transforms as transforms
+
 
 from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
-
+from torchvision.datasets import MNIST
+from torch.utils.data import DataLoader
 from rfs import DEVICE
-from rfs.models.diffusion import Diffusion, UNet, UNetConditional, EMA
-from rfs.utils.logging import setup_logging
-from rfs.utils.image_utils import save_images
-from rfs.data.dataloaders import get_data_from_path
+from rfs.models.diffusion import Diffusion, UNet
 
 
-def train(args):
-    setup_logging(args.run_name)
-    device = DEVICE
-    dataloader = get_data_from_path(args)
-    model = UNet().to(device)
-    # model = UNetConditional(num_classes=args.nums_classes).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+def get_mnist_loader(batch_size, train=True):
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Lambda(lambda t: (t * 2) - 1)
+    ])
+
+    dataset = MNIST(root='./data', train=train,
+                    download=True, transform=transform)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+
+def train(num_epochs=10, batch_size=32):
+    dataloader = get_mnist_loader(batch_size=batch_size)
+
+    model = UNet(num_in_channels=1, num_out_channels=1).to(DEVICE)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
     mse = nn.MSELoss()
-    diffusion = Diffusion(img_size=args.image_size)
-    logger = SummaryWriter(f'runs/{args.run_name}')
-    l = len(dataloader)
-    # ema = EMA(beta=0.995)
-    # ema_model = copy.deepcopy(model).eval().requires_grad_(False)
+    diffusion = Diffusion(img_size=28)
 
-    for epoch in range(args.epochs):
-        logging.info(f"Starting epoch {epoch + 1}/{args.epochs}...")
+    for epoch in range(num_epochs):
+        model.train()
         pbar = tqdm(dataloader)
-        for i, (images, labels) in enumerate(pbar):
-            images, labels = images.to(device), labels.to(device)
-            t = diffusion.sample_timestemps(images.shape[0]).to(device)
+        pbar.set_description(f"Epoch {epoch}")
+
+        for _, (images, _) in enumerate(pbar):
+            images = images.to(DEVICE)
+
+            t = diffusion.sample_timesteps(images.shape[0]).to(DEVICE)
+
             x_t, noise = diffusion.noise_images(images, t)
-            # if np.random.random() < 0.1:
-            #     labels = None
+
             predicted_noise = model(x_t, t)
-            # predicted_noise = model(x_t, t, labels)
+
             loss = mse(noise, predicted_noise)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # ema.step_ema(ema_model, model)
 
-            pbar.set_postfix(MSE=loss.item())
-            logger.add_scalar("MSE", loss.item(), global_step=epoch*l + i)
+            pbar.set_postfix(MSE=f"{loss.item():.4f}")
 
-        sampled_images = diffusion.sample(
-            model, n=images.shape[0], labels=None, cfg_scales=0)
-        # ema_sampled_images = diffusion.sample(ema_model, n=images.shape[0])
-        save_images(sampled_images, f"results/{args.run_name}/{epoch}.png")
-        # save_images(ema_sampled_images, f"results/{args.run_name}/ema_{epoch}.png
-        torch.save(model.state_dict(), f"models/{args.run_name}/{epoch}.pt")
-        # torch.save(ema_model.state_dict(), f"models/{args.run_name}/ema_{epoch}.pt")
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--run_name', type=str, default='DDPM_Unconditional')
-    parser.add_argument('--epochs', type=int, default=1)
-    parser.add_argument('--batch_size', type=int, default=12)
-    parser.add_argument('--image_size', type=int, default=64)
-    parser.add_argument('--dataset_path', type=str,
-                        default='datasets/unconditional')
-    parser.add_argument('--lr', type=float, default=3e-4)
-    args = parser.parse_args()
-    train(args)
+        if (epoch + 1) % 5 == 0:
+            model.eval()
+            with torch.no_grad():
+                sampled_images = diffusion.sample(model, n=16, labels=None)
+                torchvision.utils.save_image(sampled_images, f"samples/epoch_{epoch}_{time.time()}.png")
 
 
 if __name__ == "__main__":
-    main()
+    train(num_epochs=10, batch_size=32)
