@@ -9,7 +9,7 @@ from torchvision.datasets import MNIST
 
 from rfs import DEVICE
 from rfs.models.vae import VAE
-from rfs.models.diffusion import DiT
+from rfs.models.dit import DiT
 from rfs.utils.dit_utils import cold_diffuse
 from rfs.utils.vae_utils import (
     visualize_reconstructions,
@@ -23,7 +23,7 @@ def load_models(vae_path="result/vae.pth", dit_path="result/latest_dit_173056460
     vae.load_state_dict(torch.load(vae_path))
     vae.eval()
 
-    dit = DiT(
+    dit = DiTLatent(
         image_size=28,
         channels_in=1,
         patch_size=2,
@@ -43,8 +43,7 @@ def get_test_loader(batch_size=128):
     transform = transforms.Compose(
         [transforms.ToTensor(), transforms.Lambda(lambda t: (t * 2) - 1)]
     )
-    dataset = MNIST(root="./data", train=False,
-                    download=True, transform=transform)
+    dataset = MNIST(root="./data", train=False, download=True, transform=transform)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
@@ -74,11 +73,12 @@ def visualize_dit_results(dit, num_samples=8):
         denoised = cold_diffuse(dit, noise, total_steps)
 
         denoised = (denoised + 1) / 2
-        vutils.save_image(denoised,
-                          "dit_samples.png",
-                          nrow=4,
-                          normalize=False,
-                          )
+        vutils.save_image(
+            denoised,
+            "dit_samples.png",
+            nrow=4,
+            normalize=False,
+        )
 
 
 def test_vae_dit_pipeline(vae, dit, test_loader, num_samples=8):

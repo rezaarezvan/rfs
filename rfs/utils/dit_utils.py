@@ -61,31 +61,35 @@ def cold_diffuse(diffusion_model, sample_in, total_steps, start_step=0, cfg_scal
     random_sample = copy.deepcopy(sample_in)
 
     with torch.no_grad():
-        for i in tqdm(reversed(range(1, total_steps)), desc="Sampling"):
+        for i in tqdm(range(start_step, total_steps - 1), desc="Sampling"):
             index = torch.full((bs,), i, device=DEVICE)
 
-            img_output = diffusion_model(random_sample, index)
-
-            if cfg_scale > 1.0:
-                uncond_output = diffusion_model(random_sample, index, y=None)
-                img_output = uncond_output + cfg_scale * (img_output - uncond_output)
+            predicted = diffusion_model(random_sample, index)
 
             alpha = alphas[i]
-            alpha_prev = alphas[i - 1] if i > 0 else torch.tensor(1.0).to(DEVICE)
+            alpha_next = (
+                alphas[i + 1] if i < total_steps - 1 else torch.tensor(1.0).to(DEVICE)
+            )
 
-            sigma = ((1 - alpha_prev) / (1 - alpha)) * (1 - alpha / alpha_prev)
-            sigma = torch.sqrt(sigma)
+            sigma = torch.sqrt(
+                (1 - alpha_next) / (1 - alpha) * (1 - alpha / alpha_next)
+            )
 
             noise = (
                 torch.randn_like(random_sample)
-                if i > 1
+                if i < total_steps - 2
                 else torch.zeros_like(random_sample)
             )
 
-            pred_x0 = (random_sample - torch.sqrt(1 - alpha) * img_output) / torch.sqrt(
+            x0_pred = (random_sample - torch.sqrt(1 - alpha) * predicted) / torch.sqrt(
                 alpha
             )
-            dir_xt = torch.sqrt(1 - alpha_prev - sigma**2) * img_output
-            random_sample = torch.sqrt(alpha_prev) * pred_x0 + dir_xt + sigma * noise
+            x0_pred = torch.clamp(x0_pred, -1, 1)
 
-    return random_sample
+            random_sample = (
+                torch.sqrt(alpha_next) * x0_pred
+                + torch.sqrt(1 - alpha_next - sigma**2) * predicted
+                + sigma * noise
+            )
+
+    return x0_pred

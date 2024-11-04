@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 
 from tqdm import tqdm
 from rfs import DEVICE
-from rfs.models.diffusion import DiT
+from rfs.models.dit import DiT
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 from rfs.utils.dit_utils import cosine_alphas_bar, cold_diffuse
@@ -31,7 +31,7 @@ def train(num_epochs=100, batch_size=128):
 
     train_loader = get_mnist_loader(batch_size=batch_size)
 
-    model = DiT(
+    model = DiTLatent(
         image_size=28,
         channels_in=1,
         patch_size=2,

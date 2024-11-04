@@ -9,7 +9,7 @@ from tqdm import tqdm
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
 from rfs import DEVICE
-from rfs.models.diffusion import Diffusion, UNet
+from rfs.models.ddpm import DDPM, UNet
 
 
 def get_mnist_loader(batch_size, train=True):
@@ -27,7 +27,7 @@ def train(num_epochs=10, batch_size=32):
     model = UNet(num_in_channels=1, num_out_channels=1).to(DEVICE)
     optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
     mse = nn.MSELoss()
-    diffusion = Diffusion(img_size=28)
+    diffusion = DDPM(img_size=28)
 
     for epoch in range(num_epochs):
         model.train()
