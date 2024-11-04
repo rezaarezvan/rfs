@@ -74,24 +74,60 @@ def extract(arr, timesteps, broadcast_shape):
     return res.expand(broadcast_shape)
 
 
-def get_model_output(model, x, t):
-    """Get model output (predicted noise)"""
-    return model(x, t)
-
-
-def training_losses(model, x_start, t):
+def training_losses(model, x_start, t, diffusion):
     """
     Compute training losses for a single timestep.
     """
     noise = torch.randn_like(x_start)
+
     x_t = (
         extract(diffusion.sqrt_alphas_cumprod, t, x_start.shape) * x_start
         + extract(diffusion.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
     )
-    model_output = get_model_output(model, x_t, t)
 
-    loss = torch.nn.functional.mse_loss(model_output, noise, reduction="none")
-    return {"loss": loss.mean()}
+    pred = model(x_t, t)
+
+    # TODO: Implement posteriers for learn_sigma
+    if model.learn_sigma:
+        B, C, H, W = x_start.shape
+        pred = pred.reshape(B, 2, C, H, W)
+        pred_mean = pred[:, 0]
+        pred_sigma = pred[:, 1]
+
+        min_log = extract(diffusion.posterior_log_variance_clipped, t, x_start.shape)
+        max_log = extract(diffusion.betas, t, x_start.shape)
+
+        pred_log_variance = pred_sigma * max_log + (1 - pred_sigma) * min_log
+
+        def normal_kl(mean1, logvar1, mean2, logvar2):
+            return 0.5 * (
+                -1.0
+                + logvar2
+                - logvar1
+                + torch.exp(logvar1 - logvar2)
+                + ((mean1 - mean2) ** 2) / torch.exp(logvar2)
+            )
+
+        def mean_flat(tensor):
+            return tensor.mean(dim=list(range(1, len(tensor.shape))))
+
+        kl = normal_kl(
+            mean1=pred_mean,
+            logvar1=pred_log_variance,
+            mean2=noise,
+            logvar2=torch.zeros_like(pred_log_variance),
+        )
+
+        kl = mean_flat(kl) / np.log(2.0)
+
+        mse = mean_flat((pred_mean - noise) ** 2)
+
+        loss = kl + mse
+
+    else:
+        loss = torch.nn.functional.mse_loss(pred, noise)
+
+    return loss
 
 
 def p_sample(model, x, t, t_index):
@@ -104,7 +140,7 @@ def p_sample(model, x, t, t_index):
     )
     sqrt_recip_alphas_t = extract(diffusion.sqrt_recip_alphas_cumprod, t, x.shape)
 
-    model_output = get_model_output(model, x, t)
+    model_output = model(x, t)
     pred_mean = sqrt_recip_alphas_t * (
         x - betas_t * model_output / sqrt_one_minus_alphas_cumprod_t
     )

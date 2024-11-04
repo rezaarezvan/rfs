@@ -122,12 +122,12 @@ class DiT(nn.Module):
 
     def __init__(
         self,
-        input_size=32,
+        input_size,
+        in_channels,
         patch_size=2,
-        in_channels=4,
-        hidden_size=1152,
-        depth=28,
-        num_heads=16,
+        hidden_size=768,
+        depth=12,
+        num_heads=12,
         mlp_ratio=4.0,
         learn_sigma=True,
     ):
@@ -135,25 +135,31 @@ class DiT(nn.Module):
         self.learn_sigma = learn_sigma
         self.in_channels = in_channels
         self.out_channels = in_channels * 2 if learn_sigma else in_channels
-        self.patch_size = patch_size
-        self.num_heads = num_heads
 
+        # Input Embedding
         self.x_embedder = PatchEmbed(
             input_size, patch_size, in_channels, hidden_size, bias=True
         )
         self.t_embedder = TimestepEmbedder(hidden_size)
-        num_patches = self.x_embedder.num_patches
+
+        # Positional Embedding
+        num_patches = (input_size // patch_size) ** 2
         self.pos_embed = nn.Parameter(
             torch.zeros(1, num_patches, hidden_size), requires_grad=False
         )
 
+        # Transformer Blocks
         self.blocks = nn.ModuleList(
             [
                 DiTBlock(hidden_size, num_heads, mlp_ratio=mlp_ratio)
                 for _ in range(depth)
             ]
         )
+
+        # Output layers
         self.final_layer = FinalLayer(hidden_size, patch_size, self.out_channels)
+
+        # Initialize weights
         self.initialize_weights()
 
     def initialize_weights(self):
