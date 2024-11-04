@@ -1,95 +1,142 @@
-import copy
 import torch
+import numpy as np
 
 from tqdm import tqdm
 from rfs import DEVICE
+from types import SimpleNamespace
 
 
-def extract_patches(image_tensor, patch_size=8):
-    bs, c, h, w = image_tensor.size()
-    unfold = torch.nn.Unfold(kernel_size=patch_size, stride=patch_size)
-    unfolded = unfold(image_tensor)
-    unfolded = unfolded.transpose(1, 2).reshape(bs, -1, c * patch_size * patch_size)
-    return unfolded
+def get_beta_schedule_for_inference(betas, desired_count):
+    """Adjust beta schedule length for inference."""
+    orig_spacing = len(betas)
+    subsample_steps = orig_spacing // desired_count
+
+    new_betas = betas[::subsample_steps]
+
+    if len(new_betas) > desired_count:
+        new_betas = new_betas[:desired_count]
+    elif len(new_betas) < desired_count:
+        pad_size = desired_count - len(new_betas)
+        new_betas = np.concatenate([new_betas, np.full(pad_size, new_betas[-1])])
+
+    return new_betas
 
 
-def reconstruct_image(patch_sequence, image_shape, patch_size=8):
+def create_diffusion(timestep_respacing=""):
     """
-    Reconstructs the original image tensor from a sequence of patches.
-    Args:
-        patch_sequence (torch.Tensor): Sequence of patches with shape
-        BS x L x (C x patch_size x patch_size)
-        image_shape (tuple): Shape of the original image tensor (bs, c, h, w).
-        patch_size (int): Size of the patches used in extraction.
-    Returns:
-        torch.Tensor: Reconstructed image tensor.
+    Creates a noise schedule and diffusion process.
     """
-    bs, c, h, w = image_shape
-    num_patches_h = h // patch_size
-    num_patches_w = w // patch_size
-    unfolded_shape = (bs, num_patches_h, num_patches_w, patch_size, patch_size, c)
-    patch_sequence = patch_sequence.view(*unfolded_shape)
-    patch_sequence = patch_sequence.permute(0, 5, 1, 3, 2, 4).contiguous()
-    reconstructed = patch_sequence.view(bs, c, h, w)
-    return reconstructed
+    betas = get_named_beta_schedule("linear", 1000)
+    if len(timestep_respacing) > 0:
+        desired_count = int(timestep_respacing)
+        new_betas = get_beta_schedule_for_inference(betas, desired_count)
+        betas = new_betas
+
+    alphas = 1.0 - betas
+    alphas_cumprod = np.cumprod(alphas, axis=0)
+    alphas_cumprod_prev = np.append(1.0, alphas_cumprod[:-1])
+
+    return SimpleNamespace(
+        betas=betas,
+        alphas=alphas,
+        alphas_cumprod=alphas_cumprod,
+        alphas_cumprod_prev=alphas_cumprod_prev,
+        sqrt_alphas_cumprod=np.sqrt(alphas_cumprod),
+        sqrt_one_minus_alphas_cumprod=np.sqrt(1.0 - alphas_cumprod),
+        sqrt_recip_alphas_cumprod=np.sqrt(1.0 / alphas_cumprod),
+        sqrt_recipm1_alphas_cumprod=np.sqrt(1.0 / alphas_cumprod - 1),
+        num_timesteps=len(betas),
+    )
 
 
-def cosine_alphas_bar(timesteps, s=0.008):
+def get_named_beta_schedule(schedule_name, num_diffusion_timesteps):
     """
-    Compute the cumulative product of (1 - β_t) for t in [0, timesteps-1] using cosine scheduling.
+    Get a pre-defined beta schedule for the given name.
     """
-    steps = timesteps + 1
-    x = torch.linspace(0, steps, steps)
-    alphas_bar = torch.cos(((x / steps) + s) / (1 + s) * torch.pi * 0.5) ** 2
-    alphas_bar = alphas_bar / alphas_bar[0]
-    return alphas_bar[:timesteps]
+    if schedule_name == "linear":
+        scale = 1000 / num_diffusion_timesteps
+        beta_start = scale * 0.0001
+        beta_end = scale * 0.02
+        return np.linspace(
+            beta_start, beta_end, num_diffusion_timesteps, dtype=np.float64
+        )
+    else:
+        raise NotImplementedError(f"Unknown beta schedule: {schedule_name}")
 
 
-def cold_diffuse(diffusion_model, sample_in, total_steps, start_step=0, cfg_scale=3.0):
+def extract(arr, timesteps, broadcast_shape):
     """
-    DiT sampling process with classifier-free guidance support.
-    Args:
-        diffusion_model: The DiT model
-        sample_in: Initial noise samples
-        total_steps: Total number of denoising steps
-        start_step: Starting timestep (for continuing partial sampling)
-        cfg_scale: Classifier-free guidance scale (1.0 means no guidance)
+    Extract values from a 1-D numpy array for a batch of indices.
     """
-    diffusion_model.eval()
-    bs = sample_in.shape[0]
-    alphas = torch.flip(cosine_alphas_bar(total_steps), (0,)).to(DEVICE)
-    random_sample = copy.deepcopy(sample_in)
+    res = torch.from_numpy(arr).to(DEVICE)[timesteps].float()
+    while len(res.shape) < len(broadcast_shape):
+        res = res[..., None]
+    return res.expand(broadcast_shape)
 
-    with torch.no_grad():
-        for i in tqdm(range(start_step, total_steps - 1), desc="Sampling"):
-            index = torch.full((bs,), i, device=DEVICE)
 
-            predicted = diffusion_model(random_sample, index)
+def get_model_output(model, x, t):
+    """Get model output (predicted noise)"""
+    return model(x, t)
 
-            alpha = alphas[i]
-            alpha_next = (
-                alphas[i + 1] if i < total_steps - 1 else torch.tensor(1.0).to(DEVICE)
-            )
 
-            sigma = torch.sqrt(
-                (1 - alpha_next) / (1 - alpha) * (1 - alpha / alpha_next)
-            )
+def training_losses(model, x_start, t):
+    """
+    Compute training losses for a single timestep.
+    """
+    noise = torch.randn_like(x_start)
+    x_t = (
+        extract(diffusion.sqrt_alphas_cumprod, t, x_start.shape) * x_start
+        + extract(diffusion.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+    )
+    model_output = get_model_output(model, x_t, t)
 
-            noise = (
-                torch.randn_like(random_sample)
-                if i < total_steps - 2
-                else torch.zeros_like(random_sample)
-            )
+    loss = torch.nn.functional.mse_loss(model_output, noise, reduction="none")
+    return {"loss": loss.mean()}
 
-            x0_pred = (random_sample - torch.sqrt(1 - alpha) * predicted) / torch.sqrt(
-                alpha
-            )
-            x0_pred = torch.clamp(x0_pred, -1, 1)
 
-            random_sample = (
-                torch.sqrt(alpha_next) * x0_pred
-                + torch.sqrt(1 - alpha_next - sigma**2) * predicted
-                + sigma * noise
-            )
+def p_sample(model, x, t, t_index):
+    """
+    Sample from the model at timestep t.
+    """
+    betas_t = extract(diffusion.betas, t, x.shape)
+    sqrt_one_minus_alphas_cumprod_t = extract(
+        diffusion.sqrt_one_minus_alphas_cumprod, t, x.shape
+    )
+    sqrt_recip_alphas_t = extract(diffusion.sqrt_recip_alphas_cumprod, t, x.shape)
 
-    return x0_pred
+    model_output = get_model_output(model, x, t)
+    pred_mean = sqrt_recip_alphas_t * (
+        x - betas_t * model_output / sqrt_one_minus_alphas_cumprod_t
+    )
+
+    if t_index == 0:
+        return pred_mean
+    else:
+        posterior_variance_t = extract(diffusion.betas, t, x.shape)
+        noise = torch.randn_like(x)
+        return pred_mean + torch.sqrt(posterior_variance_t) * noise
+
+
+def p_sample_loop(model, shape, noise=None, clip_denoised=True, progress=True):
+    """
+    Generate samples from the model.
+    """
+    if noise is None:
+        noise = torch.randn(*shape, device=DEVICE)
+    x_start = noise
+
+    indices = list(range(diffusion.num_timesteps))[::-1]
+    if progress:
+        indices = tqdm(indices, desc="Sampling")
+
+    for i in indices:
+        t = torch.tensor([i] * shape[0], device=DEVICE)
+        with torch.no_grad():
+            x_start = p_sample(model, x_start, t, i)
+            if clip_denoised:
+                x_start = torch.clamp(x_start, -1, 1)
+
+    return x_start
+
+
+diffusion = create_diffusion()

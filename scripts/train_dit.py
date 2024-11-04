@@ -1,16 +1,26 @@
 import os
 import time
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.utils as vutils
 import torchvision.transforms as transforms
 
 from tqdm import tqdm
-from rfs import DEVICE
-from rfs.models.dit import DiT
+from copy import deepcopy
 from torchvision.datasets import MNIST
 from torch.utils.data import DataLoader
-from rfs.utils.dit_utils import cosine_alphas_bar, cold_diffuse
+
+from rfs import DEVICE
+from rfs.models.dit import DiT
+from rfs.models.vae import VAE
+from rfs.utils.dit_utils import create_diffusion, training_losses, p_sample_loop
+
+
+@torch.no_grad()
+def update_ema(ema_model, model, decay=0.9999):
+    """Update EMA parameters"""
+    for ema_param, param in zip(ema_model.parameters(), model.parameters()):
+        ema_param.mul_(decay).add_(param.data, alpha=1 - decay)
 
 
 def get_mnist_loader(batch_size, train=True):
@@ -25,132 +35,151 @@ def get_mnist_loader(batch_size, train=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
-def train(num_epochs=100, batch_size=128):
-    os.makedirs("results", exist_ok=True)
-    os.makedirs("checkpoints", exist_ok=True)
+def load_vae():
+    """Load pretrained VAE"""
+    vae = VAE(input_channels=1, latent_dim=32).to(DEVICE)
+    vae.load_state_dict(torch.load("result/vae.pth"))
+    vae.eval()
+    return vae
 
-    train_loader = get_mnist_loader(batch_size=batch_size)
 
-    model = DiTLatent(
-        image_size=28,
-        channels_in=1,
-        patch_size=2,
-        hidden_size=768,
-        num_heads=12,
-        num_layers=12,
-        num_classes=None,
-    ).to(DEVICE)
+def sample_and_save(ema_model, vae, args, train_steps, in_channels):
+    """Generate and save samples"""
+    ema_model.eval()
+    with torch.no_grad():
+        if vae is None:
+            samples = torch.randn(16, in_channels, 28, 28).to(DEVICE)
+            samples = p_sample_loop(
+                ema_model, samples.shape, noise=samples, clip_denoised=True
+            )
+        else:
+            latent_samples = torch.randn(16, in_channels, 6, 6).to(DEVICE)
+            latent_samples = p_sample_loop(
+                ema_model,
+                latent_samples.shape,
+                noise=latent_samples,
+                clip_denoised=True,
+            )
+            latent_flat = latent_samples.view(latent_samples.size(0), -1)[:, :32]
+            samples = vae.decode(latent_flat)
 
-    GLOBAL_BATCH_SIZE = 256
-    ACCUMULATION_STEPS = max(GLOBAL_BATCH_SIZE // batch_size, 1)
-    GRADIENT_CLIP_NORM = 1.0
-    time_steps = 1000
-
-    optimizer = torch.optim.AdamW(
-        model.parameters(), lr=1e-4, weight_decay=0.03, betas=(0.9, 0.999)
-    )
-
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=num_epochs, eta_min=1e-5
-    )
-
-    scaler = torch.cuda.amp.GradScaler()
-    alphas = torch.flip(cosine_alphas_bar(time_steps), (0,)).to(DEVICE)
-
-    loss_log = []
-    best_loss = float("inf")
-    start_epoch = 0
-
-    checkpoint_path = f"checkpoints/latest_dit_{int(time.time())}.pt"
-    if os.path.exists(checkpoint_path):
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        start_epoch = checkpoint["epoch"]
-        loss_log = checkpoint["loss_log"]
-        best_loss = checkpoint["best_loss"]
-        print(f"Resuming from epoch {start_epoch}")
-
-    for epoch in range(start_epoch, num_epochs):
-        model.train()
-        epoch_loss = 0
-        pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{num_epochs}")
-        optimizer.zero_grad()
-
-        for batch_idx, batch in enumerate(pbar):
-            if isinstance(batch, (tuple, list)):
-                images, _ = batch
-            else:
-                images = batch
-
-            images = images.float().to(DEVICE)
-            bs = images.shape[0]
-
-            t = torch.randint(time_steps, (bs,), device=DEVICE)
-            noise = torch.randn_like(images)
-            alpha_t = alphas[t].reshape(bs, 1, 1, 1)
-            noisy_images = alpha_t.sqrt() * images + (1 - alpha_t).sqrt() * noise
-
-            with torch.cuda.amp.autocast():
-                pred = model(noisy_images, t)
-                loss = nn.functional.mse_loss(pred, images)
-                loss = loss / ACCUMULATION_STEPS
-
-            scaler.scale(loss).backward()
-
-            if (batch_idx + 1) % ACCUMULATION_STEPS == 0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), GRADIENT_CLIP_NORM)
-                scaler.step(optimizer)
-                scaler.update()
-                optimizer.zero_grad()
-
-            epoch_loss += loss.item() * ACCUMULATION_STEPS
-            pbar.set_postfix({"loss": loss.item() * ACCUMULATION_STEPS})
-            loss_log.append(loss.item() * ACCUMULATION_STEPS)
-
-        scheduler.step()
-
-        avg_loss = epoch_loss / len(train_loader)
-        print(f"Epoch {epoch} average loss: {avg_loss:.6f}")
-
-        torch.save(
-            {
-                "epoch": epoch + 1,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "scheduler_state_dict": scheduler.state_dict(),
-                "loss_log": loss_log,
-                "best_loss": best_loss,
-            },
-            checkpoint_path,
+        vutils.save_image(
+            samples,
+            f"{args.results_dir}/samples/sample_{train_steps:07d}.png",
+            normalize=True,
+            nrow=4,
         )
 
-        if avg_loss < best_loss:
-            best_loss = avg_loss
-            torch.save(
-                {
-                    "epoch": epoch + 1,
-                    "model_state_dict": model.state_dict(),
-                    "loss": avg_loss,
-                },
-                f"checkpoints/best_dit_{int(time.time())}.pt",
-            )
 
-        if (epoch + 1) % 10 == 0:
-            model.eval()
-            with torch.no_grad():
-                samples = torch.randn(16, 1, 28, 28).to(DEVICE)
-                samples = cold_diffuse(model, samples, total_steps=100)
-                vutils.save_image(
-                    samples,
-                    f"results/dit_samples_epoch_{epoch +
-                                                 1}_{int(time.time())}.png",
-                    normalize=True,
-                    nrow=4,
+def train(args):
+    os.makedirs(args.results_dir, exist_ok=True)
+    os.makedirs(f"{args.results_dir}/samples", exist_ok=True)
+    os.makedirs(f"{args.results_dir}/checkpoints", exist_ok=True)
+
+    if args.vae:
+        vae = load_vae()
+        in_channels = 1
+        spatial_size = 6
+    else:
+        in_channels = 1
+        spatial_size = 28
+
+    model = DiT(
+        input_size=spatial_size,
+        patch_size=2,
+        in_channels=in_channels,
+        hidden_size=384,
+        depth=12,
+        num_heads=6,
+        mlp_ratio=4.0,
+    ).to(DEVICE)
+
+    diffusion = create_diffusion()
+
+    ema = deepcopy(model).to(DEVICE)
+    for param in ema.parameters():
+        param.requires_grad_(False)
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.lr, weight_decay=0.03, betas=(0.9, 0.999)
+    )
+
+    train_loader = get_mnist_loader(args.batch_size, train=True)
+
+    train_steps = 0
+    log_steps = 0
+    running_loss = 0
+    start_time = time.time()
+
+    for epoch in range(args.epochs):
+        model.train()
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch}")
+
+        for x, _ in pbar:
+            x = x.to(DEVICE)
+
+            if vae is not None:
+                with torch.no_grad():
+                    mu, log_var = vae.encode(x)
+                    z = vae.reparameterize(mu, log_var)
+                    z_padded = F.pad(z, (0, 4), mode="constant", value=0)
+                    x = z_padded.view(
+                        z.size(0), in_channels, spatial_size, spatial_size
+                    )
+
+            t = torch.randint(0, diffusion.num_timesteps, (x.shape[0],), device=DEVICE)
+
+            loss_dict = training_losses(model, x, t)
+            loss = loss_dict["loss"]
+
+            optimizer.zero_grad()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            optimizer.step()
+
+            update_ema(ema, model)
+
+            running_loss += loss.item()
+            log_steps += 1
+            train_steps += 1
+
+            if train_steps % args.log_every == 0:
+                steps_per_sec = log_steps / (time.time() - start_time)
+                avg_loss = running_loss / log_steps
+                pbar.set_postfix(
+                    {"loss": f"{avg_loss:.4f}", "steps/sec": f"{steps_per_sec:.2f}"}
                 )
+
+                running_loss = 0
+                log_steps = 0
+                start_time = time.time()
+
+            if train_steps % args.sample_every == 0:
+                checkpoint = {
+                    "model": model.state_dict(),
+                    "ema": ema.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "train_steps": train_steps,
+                }
+                torch.save(
+                    checkpoint,
+                    f"{args.results_dir}/checkpoints/checkpoint_{train_steps:07d}.pt",
+                )
+
+                sample_and_save(ema, vae, args, train_steps, in_channels)
 
 
 if __name__ == "__main__":
-    train(num_epochs=10, batch_size=128)
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=100)
+    parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--results-dir", type=str, default="results/dit_mnist")
+    parser.add_argument("--log-every", type=int, default=10)
+    parser.add_argument("--sample-every", type=int, default=1000)
+    parser.add_argument("--vae", action="store_true", help="Train in VAE latent space")
+    args = parser.parse_args()
+
+    train(args)

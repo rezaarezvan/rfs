@@ -9,7 +9,7 @@ class VAE(nn.Module):
     def __init__(
         self,
         input_channels=1,
-        latent_dim=32,
+        latent_dim=4,
         hidden_dims=None,
         conditional=False,
         num_classes=10,
@@ -33,7 +33,7 @@ class VAE(nn.Module):
         self.num_classes = num_classes
 
         if hidden_dims is None:
-            hidden_dims = [32, 64, 128, 256]
+            hidden_dims = [32, 64]
         self.hidden_dims = hidden_dims
 
         if self.conditional:
@@ -51,9 +51,6 @@ class VAE(nn.Module):
                     nn.Conv2d(in_channels, h_dim, kernel_size=3, stride=2, padding=1),
                     nn.BatchNorm2d(h_dim),
                     nn.LeakyReLU(),
-                    nn.Conv2d(h_dim, h_dim, kernel_size=3, stride=1, padding=1),
-                    nn.BatchNorm2d(h_dim),
-                    nn.LeakyReLU(),
                 )
             )
             in_channels = h_dim
@@ -61,17 +58,8 @@ class VAE(nn.Module):
         encoder = nn.Sequential(*modules)
 
         self._compute_latent_shape(encoder, input_channels)
-        self.fc_mu = nn.Sequential(
-            nn.Linear(self.flatten_dim, self.latent_dim // 2),
-            nn.LeakyReLU(),
-            nn.Linear(self.latent_dim // 2, self.latent_dim),
-        )
-
-        self.fc_log_var = nn.Sequential(
-            nn.Linear(self.flatten_dim, self.latent_dim // 2),
-            nn.LeakyReLU(),
-            nn.Linear(self.latent_dim // 2, self.latent_dim),
-        )
+        self.fc_mu = nn.Linear(self.flatten_dim, self.latent_dim)
+        self.fc_log_var = nn.Linear(self.flatten_dim, self.latent_dim)
 
         return encoder
 
@@ -91,11 +79,7 @@ class VAE(nn.Module):
             self.latent_dim + self.num_classes if self.conditional else self.latent_dim
         )
 
-        self.decoder_input = nn.Sequential(
-            nn.Linear(input_dim, self.flatten_dim // 2),
-            nn.LeakyReLU(),
-            nn.Linear(self.flatten_dim // 2, self.flatten_dim),
-        )
+        self.decoder_input = nn.Linear(input_dim, self.flatten_dim)
 
         for i in range(len(hidden_dims) - 1):
             out_channels = hidden_dims[i + 1]
@@ -108,15 +92,6 @@ class VAE(nn.Module):
                         stride=2,
                         padding=1,
                         output_padding=1,
-                    ),
-                    nn.BatchNorm2d(out_channels),
-                    nn.LeakyReLU(),
-                    nn.Conv2d(
-                        out_channels,
-                        out_channels,
-                        kernel_size=3,
-                        stride=1,
-                        padding=1,
                     ),
                     nn.BatchNorm2d(out_channels),
                     nn.LeakyReLU(),
@@ -135,11 +110,6 @@ class VAE(nn.Module):
                 padding=1,
                 output_padding=1,
             ),
-            nn.BatchNorm2d(input_channels),
-            nn.LeakyReLU(),
-            nn.Conv2d(
-                input_channels, input_channels, kernel_size=3, stride=1, padding=1
-            ),
             nn.Sigmoid(),
         )
 
@@ -154,7 +124,6 @@ class VAE(nn.Module):
 
         result = self.encoder(input)
         result = torch.flatten(result, start_dim=1)
-
         mu = self.fc_mu(result)
         log_var = self.fc_log_var(result)
         return mu, log_var
