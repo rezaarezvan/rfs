@@ -1,7 +1,6 @@
 import os
 import time
 import torch
-import torchvision.utils as vutils
 import torchvision.transforms as transforms
 
 from tqdm import tqdm
@@ -74,14 +73,28 @@ def train(args):
         model.parameters(), lr=args.lr, weight_decay=0.03, betas=(0.9, 0.999)
     )
 
+    train_steps = 0
+    start_epoch = 0
+
+    if args.load:
+        print(f"Loading checkpoint from {args.load}")
+        checkpoint = torch.load(args.load, map_location=DEVICE)
+        model.load_state_dict(checkpoint["model"])
+        ema.load_state_dict(checkpoint["ema"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        train_steps = checkpoint["train_steps"]
+        train_loader = get_mnist_loader(args.batch_size, train=True)
+        steps_per_epoch = len(train_loader)
+        start_epoch = train_steps // steps_per_epoch
+        print(f"Resuming from step {train_steps} (epoch {start_epoch})")
+
     train_loader = get_mnist_loader(args.batch_size, train=True)
 
-    train_steps = 0
     log_steps = 0
     running_loss = 0
     start_time = time.time()
 
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         model.train()
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}")
 
@@ -145,6 +158,9 @@ if __name__ == "__main__":
     parser.add_argument("--log-every", type=int, default=10)
     parser.add_argument("--sample-every", type=int, default=1000)
     parser.add_argument("--vae", action="store_true", help="Train in VAE latent space")
+    parser.add_argument(
+        "--load", type=str, help="Path to checkpoint to resume training from"
+    )
     args = parser.parse_args()
 
     train(args)
