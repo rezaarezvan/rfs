@@ -163,3 +163,4 @@ transformers/data/
 .DS_Store
 data/
 result/
+wandb/

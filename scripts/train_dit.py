@@ -1,6 +1,8 @@
 import os
 import time
 import torch
+import wandb
+
 import torchvision.transforms as transforms
 
 from tqdm import tqdm
@@ -11,7 +13,7 @@ from torch.utils.data import DataLoader
 from rfs import DEVICE
 from rfs.models.dit import DiT
 from rfs.models.vae import VAE
-from rfs.utils.dit_utils import create_diffusion, training_losses
+from rfs.utils.dit_utils import create_diffusion, training_losses, p_sample_loop
 
 
 @torch.no_grad()
@@ -41,6 +43,9 @@ def load_vae():
 
 
 def train(args):
+    wandb.init(
+        project="diffusion_experiment", name="dit_mnist_run1", config=args.__dict__
+    )
     os.makedirs(args.results_dir, exist_ok=True)
     os.makedirs(f"{args.results_dir}/checkpoints", exist_ok=True)
 
@@ -126,6 +131,7 @@ def train(args):
             if train_steps % args.log_every == 0:
                 steps_per_sec = log_steps / (time.time() - start_time)
                 avg_loss = running_loss / log_steps
+                wandb.log({"train_loss": avg_loss}, step=train_steps)
                 pbar.set_postfix(
                     {"loss": f"{avg_loss:.4f}", "steps/sec": f"{steps_per_sec:.2f}"}
                 )
@@ -144,6 +150,24 @@ def train(args):
                 torch.save(
                     checkpoint,
                     f"{args.results_dir}/checkpoints/checkpoint_{train_steps:07d}.pt",
+                )
+
+                samples = p_sample_loop(
+                    model, (16, in_channels, input_size, input_size)
+                )
+                samples = samples.cpu().numpy()
+                wandb.log(
+                    {
+                        "samples": [
+                            wandb.Image(
+                                ((sample.permute(1, 2, 0).numpy() + 1) / 2.0).clip(
+                                    0, 1
+                                ),
+                                caption=f"Sample {i}",
+                            )
+                            for i, sample in enumerate(samples)
+                        ]
+                    }
                 )
 
 
