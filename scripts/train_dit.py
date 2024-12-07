@@ -156,19 +156,12 @@ def train(args):
                     model, (16, in_channels, input_size, input_size)
                 )
                 samples = samples.cpu().numpy()
-                wandb.log(
-                    {
-                        "samples": [
-                            wandb.Image(
-                                ((sample.permute(1, 2, 0).numpy() + 1) / 2.0).clip(
-                                    0, 1
-                                ),
-                                caption=f"Sample {i}",
-                            )
-                            for i, sample in enumerate(samples)
-                        ]
-                    }
-                )
+                for sample in samples:
+                    ch1 = ((sample[..., 0] + 1) / 2.0).clip(0, 1)
+                    ch2 = ((sample[..., 1] + 1) / 2.0).clip(0, 1)
+                    wandb.log(
+                        {"channel_1": wandb.Image(ch1), "channel_2": wandb.Image(ch2)}
+                    )
 
 
 if __name__ == "__main__":
