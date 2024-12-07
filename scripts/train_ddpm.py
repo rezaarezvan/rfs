@@ -1,3 +1,4 @@
+import os
 import time
 import wandb
 import torch
@@ -22,38 +23,47 @@ def get_mnist_loader(batch_size, train=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
 
-def train(num_epochs=10, batch_size=32):
+def train(args):
     wandb.init(
-        project="diffusion_experiment",
-        name="dppm_mnist_run1",
-        config={
-            "architecture": "UNet",
-            "dataset": "MNIST",
-            "epochs": num_epochs,
-            "batch_size": batch_size,
-            "learning_rate": 3e-4,
-            "device": str(DEVICE),
-            "img_size": 28,
-        },
+        project="diffusion_experiment", name="dppm_mnist_run1", config=args.__dict__
     )
 
-    dataloader = get_mnist_loader(batch_size=batch_size)
+    os.makedirs(args.results_dir, exist_ok=True)
+    os.makedirs(f"{args.results_dir}/checkpoints", exist_ok=True)
+    train_loader = get_mnist_loader(args.batch_size, train=True)
 
     model = UNet(num_in_channels=1, num_out_channels=1).to(DEVICE)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
-    mse = nn.MSELoss()
     diffusion = DDPM(img_size=28)
 
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.lr, weight_decay=0.03, betas=(0.9, 0.999)
+    )
+
+    mse = nn.MSELoss()
     wandb.watch(model, log_freq=100)
 
-    for epoch in range(num_epochs):
-        model.train()
-        epoch_loss = 0
-        pbar = tqdm(dataloader)
-        pbar.set_description(f"Epoch {epoch}")
+    train_steps = 0
+    start_epoch = 0
 
-        global_step = 0
-        for _, (images, _) in enumerate(pbar):
+    if args.load:
+        print(f"Loading model from {args.load}")
+        checkpoint = torch.load(args.load, map_location=DEVICE)
+        model.load_state_dict(checkpoint["model"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        train_steps = checkpoint["train_steps"]
+        steps_per_epoch = len(train_loader)
+        start_epoch = train_steps // steps_per_epoch
+        print(f"Resuming training from epoch {start_epoch}")
+
+    log_steps = 0
+    running_loss = 0
+    start_time = time.time()
+
+    for epoch in range(start_epoch, args.epochs):
+        model.train()
+        pbar = tqdm(train_loader, desc=f"Epoch {epoch}")
+
+        for images, _ in pbar:
             images = images.to(DEVICE)
 
             t = diffusion.sample_timesteps(images.shape[0]).to(DEVICE)
@@ -66,27 +76,37 @@ def train(num_epochs=10, batch_size=32):
 
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             optimizer.step()
 
-            epoch_loss += loss.item()
-            wandb.log(
-                {"batch_loss": loss.item(), "epoch": epoch, "global_step": global_step}
+            running_loss += loss.item()
+            log_steps += 1
+            train_steps += 1
+
+            if train_steps % args.log_every == 0:
+                steps_per_sec = log_steps / (time.time() - start_time)
+                avg_loss = running_loss / log_steps
+                wandb.log({"train_loss": avg_loss}, step=train_step)
+                pbar.set_postfix(
+                    {"loss": f"{avg_loss:.4f}", "steps/sec": f"{steps_per_sec:.2f}"}
+                )
+
+                running_loss = 0
+                log_steps = 0
+                start_time = time.time()
+
+        if train_steps % args.sample_every == 0:
+            checkpoint = {
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "train_steps": train_steps,
+            }
+
+            torch.save(
+                checkpoint,
+                f"{args.results_dir}/checkpoints/checkpoint_{train_steps:07d}.pt",
             )
 
-            pbar.set_postfix(MSE=f"{loss.item():.4f}")
-            global_step += 1
-
-        avg_epoch_loss = epoch_loss / len(dataloader)
-        wandb.log(
-            {
-                "epoch_loss": avg_epoch_loss,
-                "epoch": epoch,
-            }
-        )
-
-        torch.save(model.state_dict(), f"checkpoints/epoch_{epoch}_{time.time()}.pt")
-
-        if (epoch + 1) % 5 == 0:
             model.eval()
             with torch.no_grad():
                 sampled_images = diffusion.sample(model, n=16, labels=None)
@@ -95,7 +115,9 @@ def train(num_epochs=10, batch_size=32):
                 )
 
                 images = wandb.Image(
-                    sampled_images, caption=f"Generated samples at epoch {epoch}"
+                    sampled_images,
+                    caption=f"Generated samples at epoch {
+                        epoch}",
                 )
                 wandb.log({"generated_samples": images})
 
@@ -106,7 +128,9 @@ def train(num_epochs=10, batch_size=32):
                 wandb.log(
                     {
                         "noise_progression": wandb.Image(
-                            noise_grid, caption=f"Noise progression at epoch {epoch}"
+                            noise_grid,
+                            caption=f"Noise progression at epoch {
+                                epoch}",
                         )
                     }
                 )
@@ -136,4 +160,19 @@ def create_noise_progression(diffusion, image, model, num_steps=8):
 
 
 if __name__ == "__main__":
-    train(num_epochs=10, batch_size=32)
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--results-dir", type=str, default="result/ddpm_mnist")
+    parser.add_argument("--log-every", type=int, default=10)
+    parser.add_argument("--sample-every", type=int, default=1000)
+    parser.add_argument(
+        "--load", type=str, help="Path to checkpoint to resume training from"
+    )
+
+    args = parser.parse_args()
+
+    train(args)

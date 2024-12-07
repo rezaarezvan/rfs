@@ -48,6 +48,7 @@ def train(args):
     )
     os.makedirs(args.results_dir, exist_ok=True)
     os.makedirs(f"{args.results_dir}/checkpoints", exist_ok=True)
+    train_loader = get_mnist_loader(args.batch_size, train=True)
 
     if args.vae:
         vae = load_vae()
@@ -88,12 +89,9 @@ def train(args):
         ema.load_state_dict(checkpoint["ema"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         train_steps = checkpoint["train_steps"]
-        train_loader = get_mnist_loader(args.batch_size, train=True)
         steps_per_epoch = len(train_loader)
         start_epoch = train_steps // steps_per_epoch
         print(f"Resuming from step {train_steps} (epoch {start_epoch})")
-
-    train_loader = get_mnist_loader(args.batch_size, train=True)
 
     log_steps = 0
     running_loss = 0
