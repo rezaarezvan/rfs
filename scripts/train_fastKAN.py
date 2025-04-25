@@ -40,8 +40,7 @@ if __name__ == "__main__":
     for i in (t := trange(getenv("STEPS", 70))):
         GlobalCounters.reset()
         loss, test_acc = train_step()
-        t.set_description(f"loss: {loss.item():6.2f} acc: {
-                          test_acc.item():5.2f}%")
+        t.set_description(f"loss: {loss.item():6.2f} acc: {test_acc.item():5.2f}%")
 
     if target := getenv("TARGET_EVAL_ACC_PCT", 0.0):
         if test_acc >= target and test_acc != 100.0:

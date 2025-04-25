@@ -19,8 +19,11 @@ def main():
     for epoch in range(10):
         train_loss = trainer.train_epoch(train_loader)
         val_loss, val_acc = trainer.evaluate(val_loader)
-        print(f"Epoch {
-              epoch+1}: Train Loss={train_loss:.4f}, Val Loss={val_loss:.4f}, Val Acc={val_acc:.2f}%")
+        print(
+            f"Epoch {epoch + 1}: Train Loss={train_loss:.4f}, Val Loss={
+                val_loss:.4f
+            }, Val Acc={val_acc:.2f}%"
+        )
 
 
 if __name__ == "__main__":

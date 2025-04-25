@@ -9,7 +9,6 @@ from torchvision.datasets import MNIST
 
 from rfs import DEVICE
 from rfs.models.vae import VAE
-from rfs.models.dit import DiT
 from rfs.utils.dit_utils import cold_diffuse
 from rfs.utils.vae_utils import (
     visualize_reconstructions,

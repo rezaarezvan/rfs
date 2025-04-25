@@ -1,5 +1,3 @@
-import torch
-
 from torch import optim, nn
 from rfs import DEVICE
 from rfs.models.unet import UNet
@@ -29,7 +27,7 @@ def main():
             optimizer.step()
             epoch_loss += loss.item()
         print(
-            f"Epoch {epoch+1}/{num_epochs}, Train Loss: {epoch_loss/len(train_loader):.4f}"
+            f"Epoch {epoch + 1}/{num_epochs}, Train Loss: {epoch_loss / len(train_loader):.4f}"
         )
 
 

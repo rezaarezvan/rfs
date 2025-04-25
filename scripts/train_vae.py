@@ -9,8 +9,6 @@ from rfs import DEVICE
 from rfs.models.vae import VAE
 from rfs.utils.vae_utils import (
     visualize_reconstructions,
-    visualize_samples,
-    visualize_latent_space,
     save_latents,
 )
 from rfs.data.dataloaders import get_mnist_loader
@@ -83,8 +81,11 @@ for epoch in range(num_epochs):
 
     avg_val_loss = val_loss / len(val_loader.dataset)
 
-    print(f"Epoch {epoch}: Train Loss = {
-          avg_train_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
+    print(
+        f"Epoch {epoch}: Train Loss = {avg_train_loss:.4f}, Val Loss = {
+            avg_val_loss:.4f
+        }"
+    )
 
     if avg_val_loss < best_loss:
         best_loss = avg_val_loss

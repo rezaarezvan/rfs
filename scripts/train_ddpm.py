@@ -116,8 +116,7 @@ def train(args):
 
                 images = wandb.Image(
                     sampled_images,
-                    caption=f"Generated samples at epoch {
-                        epoch}",
+                    caption=f"Generated samples at epoch {epoch}",
                 )
                 wandb.log({"generated_samples": images})
 
@@ -129,8 +128,7 @@ def train(args):
                     {
                         "noise_progression": wandb.Image(
                             noise_grid,
-                            caption=f"Noise progression at epoch {
-                                epoch}",
+                            caption=f"Noise progression at epoch {epoch}",
                         )
                     }
                 )

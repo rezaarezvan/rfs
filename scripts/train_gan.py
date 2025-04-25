@@ -57,12 +57,12 @@ def main():
             opt_g.step()
 
         print(
-            f"Epoch [{epoch+1}/{epochs}] Loss D: {lossD.item():.4f}, Loss G: {lossG.item():.4f}"
+            f"Epoch [{epoch + 1}/{epochs}] Loss D: {lossD.item():.4f}, Loss G: {lossG.item():.4f}"
         )
 
         with torch.no_grad():
             fake = generator(fixed_noise).reshape(-1, 1, 28, 28)
-            save_image(fake, os.path.join("imgs", f"{epoch+1}.png"))
+            save_image(fake, os.path.join("imgs", f"{epoch + 1}.png"))
 
 
 if __name__ == "__main__":

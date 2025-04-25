@@ -45,9 +45,9 @@ class FastKANLayer:
         self.output_dim = output_dim
         self.layernorm = None
         if use_layernorm:
-            assert (
-                input_dim > 1
-            ), "Do not use layernorms on 1D inputs. Set `use_layernorm=False`."
+            assert input_dim > 1, (
+                "Do not use layernorms on 1D inputs. Set `use_layernorm=False`."
+            )
             self.layernorm = nn.LayerNorm(input_dim)
         self.rbf = RBF(grid_min, grid_max, num_grids)
         self.spline_linear = SplineLinear(input_dim * num_grids, output_dim)
